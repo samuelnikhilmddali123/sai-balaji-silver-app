@@ -25,6 +25,7 @@ export interface Product {
   stock: number;
   images?: string[];
   featured_image?: string;
+  image_url?: string;
   category?: Category;
 }
 
@@ -36,6 +37,7 @@ export interface User {
   company_name?: string;
   gstin?: string;
   address?: string;
+  street_address?: string;
   street?: string;
   city?: string;
   state?: string;
@@ -86,3 +88,37 @@ export interface WholesaleQuotePayload {
   }>;
   estimated_total: number;
 }
+
+export interface OrderItem {
+  id?: number;
+  product_id: number;
+  product_name?: string;
+  product_sku?: string;
+  title?: string;
+  unit_price: number;
+  quantity: number;
+  subtotal?: number;
+  featured_image?: string;
+}
+
+export interface Order {
+  id: number;
+  order_number: string;
+  user_id?: number;
+  customer_name: string;
+  customer_email?: string;
+  customer_phone: string;
+  shipping_address: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_pincode?: string;
+  items: OrderItem[];
+  subtotal?: number;
+  tax_amount?: number;
+  shipping_charge?: number;
+  grand_total: number;
+  status: string;
+  created_at: string;
+  order_type?: 'retail' | 'wholesale';
+}
+

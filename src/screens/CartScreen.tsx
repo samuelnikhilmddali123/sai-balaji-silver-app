@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,10 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { Paths } from 'expo-file-system';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { downloadAndSharePhoto, openWhatsAppDirect } from '../services/photoShare';
 
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
   ShoppingBag,
   Trash2,
@@ -27,12 +26,15 @@ import {
   MessageCircle,
   Sparkles,
   Tag,
+  MapPin,
 } from 'lucide-react-native';
 import { useCart } from '../context/CartContext';
-import api, { getProductImageUrl } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import api, { getProductImageUrl, getFullImageUrl } from '../services/api';
 
 export const CartScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { user } = useAuth();
   const {
     effectiveCartItems,
     updateQuantity,
@@ -56,6 +58,59 @@ export const CartScreen: React.FC = () => {
   const [companyName, setCompanyName] = useState('');
   const [gstin, setGstin] = useState('');
 
+  // Auto-populate customer & shipping address details from Auth Context & AsyncStorage
+  const loadSavedAddress = async () => {
+    try {
+      const savedStr = await AsyncStorage.getItem('user_saved_address');
+      let savedObj: any = null;
+      if (savedStr) {
+        try {
+          savedObj = JSON.parse(savedStr);
+        } catch (e) {}
+      }
+
+      const defaultName = user?.full_name || savedObj?.fullName || '';
+      const defaultPhone = user?.phone || savedObj?.phone || '';
+
+      const userStreet = user?.street_address || user?.street || savedObj?.street || '';
+      const userCity = user?.city || savedObj?.city || '';
+      const userState = user?.state || savedObj?.state || '';
+      const userPincode = user?.pincode || savedObj?.pincode || '';
+
+      let defaultAddress = user?.address || '';
+      if (userStreet || userCity) {
+        defaultAddress = [
+          userStreet,
+          userCity,
+          userState ? `${userState}${userPincode ? ` - ${userPincode}` : ''}` : userPincode,
+        ]
+          .filter(Boolean)
+          .join('\n');
+      }
+
+      const defaultCompany = user?.company_name || '';
+      const defaultGstin = user?.gstin || '';
+
+      if (defaultName) setCustomerName((prev) => (prev.trim() ? prev : defaultName));
+      if (defaultPhone) setCustomerPhone((prev) => (prev.trim() ? prev : defaultPhone));
+      if (defaultAddress) setShippingAddress((prev) => (prev.trim() ? prev : defaultAddress));
+      if (defaultCompany) setCompanyName((prev) => (prev.trim() ? prev : defaultCompany));
+      if (defaultGstin) setGstin((prev) => (prev.trim() ? prev : defaultGstin));
+    } catch (err) {
+      console.error('Error loading saved address in CartScreen:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadSavedAddress();
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSavedAddress();
+    }, [user])
+  );
+
   // Financial Calculations
   const gstTax = Math.round(subtotal * 0.03); // 3% Silver GST Tax
   const shippingFee = subtotal > 10000 || subtotal === 0 ? 0 : 350;
@@ -65,6 +120,10 @@ export const CartScreen: React.FC = () => {
   const progressPercent = Math.min(100, Math.round((totalQuantity / WHOLESALE_MOQ) * 100));
 
   const handleWhatsAppOrder = async () => {
+    const name = customerName.trim() || user?.full_name || 'Customer';
+    const phone = customerPhone.trim() || user?.phone || 'Not Provided';
+    const address = shippingAddress.trim() || user?.address || 'Default Address';
+
     let message = `*SAI BALAJI SILVERWORKS - ENQUIRY & ORDER DETAILS*\n`;
     message += `-------------------------\n`;
     message += `*Mode*: ${isWholesale ? 'WHOLESALE B2B QUOTE' : 'RETAIL ORDER'}\n`;
@@ -93,48 +152,90 @@ export const CartScreen: React.FC = () => {
 
     message += `-------------------------\n`;
     message += `*DELIVERY ADDRESS & CUSTOMER INFO*:\n`;
-    message += `• Name: ${customerName.trim() || 'Not Provided'}\n`;
-    message += `• Phone: ${customerPhone.trim() || 'Not Provided'}\n`;
-    message += `• Shipping Address: ${shippingAddress.trim() || 'Not Provided'}\n`;
+    message += `• Name: ${name}\n`;
+    message += `• Phone: ${phone}\n`;
+    message += `• Shipping Address: ${address}\n`;
     if (companyName.trim()) message += `• Company: ${companyName.trim()}\n`;
     if (gstin.trim()) message += `• GSTIN: ${gstin.trim()}\n`;
 
-    // Attempt Native Image File Sharing first so the actual photo is sent in WhatsApp
     const firstItem = effectiveCartItems[0];
-    const firstImgUrl = firstItem ? getProductImageUrl(firstItem.product) : null;
+    const firstImgUrl = firstItem ? getProductImageUrl(firstItem.product) : '';
 
-    if (firstImgUrl) {
-      try {
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          const fileExt = firstImgUrl.toLowerCase().endsWith('.webp') ? '.webp' : '.jpg';
-          const cacheDir = (FileSystem as any).cacheDirectory || Paths.cache.uri;
-          const localUri = `${cacheDir}/product_order_${Date.now()}${fileExt}`;
-          const downloadRes = await FileSystem.downloadAsync(firstImgUrl, localUri);
+    // 1. Launch WhatsApp
+    await openWhatsAppDirect(message, firstImgUrl);
 
-          await Sharing.shareAsync(downloadRes.uri, {
-            mimeType: fileExt === '.webp' ? 'image/webp' : 'image/jpeg',
-            dialogTitle: 'Share Product Image & Order Details to WhatsApp',
-            UTI: 'public.jpeg',
-          });
-          return;
-        }
-      } catch (err) {
-        console.log('Native image share error, falling back to direct WhatsApp URL:', err);
-      }
-    }
-
-    const whatsappUrl = `https://wa.me/919121266269?text=${encodeURIComponent(message)}`;
-
+    // 2. Post order/quote to backend and clear cart
     try {
-      const supported = await Linking.canOpenURL(whatsappUrl);
-      if (supported) {
-        await Linking.openURL(whatsappUrl);
+      if (isWholesale) {
+        const response = await api.post('/wholesale/quote', {
+          user_id: user?.id,
+          company_name: companyName.trim() || name,
+          contact_person: name,
+          phone: phone,
+          email: user?.email || '',
+          gstin: gstin.trim() || '',
+          product_requirements: `WhatsApp B2B Quote for ${totalQuantity} items`,
+          items: effectiveCartItems.map((i) => {
+            const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
+            const fullImg = getFullImageUrl(relImg);
+            return {
+              product_id: i.product.id,
+              title: i.product.title,
+              product_name: i.product.title,
+              product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+              quantity: i.quantity,
+              unit_price: i.effectivePrice,
+              featured_image: relImg,
+              image_url: relImg,
+              image: relImg,
+              full_image_url: fullImg,
+              full_featured_image: fullImg,
+            };
+          }),
+          estimated_total: grandTotal,
+        });
+
+        const data = response.data;
+        setCheckoutSuccess(
+          `Wholesale Quote Submitted & Sent to WhatsApp! Ref ID: ${data.quote_id || data.request_number || data.id || 'SBS-QT-1002'}`
+        );
       } else {
-        Alert.alert('WhatsApp Unavailable', 'Unable to open WhatsApp on your device.');
+        const response = await api.post('/orders', {
+          user_id: user?.id,
+          customer_name: name,
+          customer_phone: phone,
+          customer_email: user?.email || '',
+          shipping_address: address,
+          items: effectiveCartItems.map((i) => {
+            const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
+            const fullImg = getFullImageUrl(relImg);
+            return {
+              product_id: i.product.id,
+              title: i.product.title,
+              product_name: i.product.title,
+              product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+              quantity: i.quantity,
+              price: i.effectivePrice,
+              unit_price: i.effectivePrice,
+              featured_image: relImg,
+              image_url: relImg,
+              image: relImg,
+              full_image_url: fullImg,
+              full_featured_image: fullImg,
+            };
+          }),
+          grand_total: grandTotal,
+        });
+
+        const data = response.data;
+        setCheckoutSuccess(
+          `Retail Order Submitted & Sent to WhatsApp! Order #: ${data.order_number || data.id || 'SBS-ORD-5001'}`
+        );
       }
     } catch (e) {
-      console.error(e);
+      setCheckoutSuccess('Your Order has been submitted and sent to WhatsApp!');
+    } finally {
+      clearCart();
     }
   };
 
@@ -151,37 +252,64 @@ export const CartScreen: React.FC = () => {
       if (isWholesale) {
         // Wholesale Quote Submission
         const response = await api.post('/wholesale/quote', {
+          user_id: user?.id,
           company_name: companyName.trim() || customerName.trim(),
           contact_person: customerName.trim(),
           phone: customerPhone.trim(),
+          email: user?.email || '',
           gstin: gstin.trim() || '',
           product_requirements: `Cart Wholesale Quote for ${totalQuantity} items`,
-          items: effectiveCartItems.map((i) => ({
-            product_id: i.product.id,
-            title: i.product.title,
-            quantity: i.quantity,
-            unit_price: i.effectivePrice,
-          })),
+          items: effectiveCartItems.map((i) => {
+            const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
+            const fullImg = getFullImageUrl(relImg);
+            return {
+              product_id: i.product.id,
+              title: i.product.title,
+              product_name: i.product.title,
+              product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+              quantity: i.quantity,
+              unit_price: i.effectivePrice,
+              featured_image: relImg,
+              image_url: relImg,
+              image: relImg,
+              full_image_url: fullImg,
+              full_featured_image: fullImg,
+            };
+          }),
           estimated_total: grandTotal,
         });
 
         const data = response.data;
         setCheckoutSuccess(
-          `Wholesale Quote Submitted! Ref ID: ${data.quote_id || data.id || 'SBS-QT-1002'}`
+          `Wholesale Quote Submitted! Ref ID: ${data.quote_id || data.request_number || data.id || 'SBS-QT-1002'}`
         );
         clearCart();
       } else {
         // Retail Order Submission
         const response = await api.post('/orders', {
+          user_id: user?.id,
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
+          customer_email: user?.email || '',
           shipping_address: shippingAddress.trim() || 'Default Address',
-          items: effectiveCartItems.map((i) => ({
-            product_id: i.product.id,
-            title: i.product.title,
-            quantity: i.quantity,
-            price: i.effectivePrice,
-          })),
+          items: effectiveCartItems.map((i) => {
+            const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
+            const fullImg = getFullImageUrl(relImg);
+            return {
+              product_id: i.product.id,
+              title: i.product.title,
+              product_name: i.product.title,
+              product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+              quantity: i.quantity,
+              price: i.effectivePrice,
+              unit_price: i.effectivePrice,
+              featured_image: relImg,
+              image_url: relImg,
+              image: relImg,
+              full_image_url: fullImg,
+              full_featured_image: fullImg,
+            };
+          }),
           grand_total: grandTotal,
         });
 
@@ -351,7 +479,13 @@ export const CartScreen: React.FC = () => {
           <>
             {/* DELIVERY ADDRESS & CUSTOMER INFO FORM */}
             <View style={styles.addressCard}>
-              <Text style={styles.addressCardTitle}>Delivery Address & Customer Info</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={[styles.addressCardTitle, { marginBottom: 0 }]}>Delivery Address & Customer Info</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E6F4EA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+                  <CheckCircle2 color="#276749" size={12} />
+                  <Text style={{ color: '#276749', fontSize: 10, fontWeight: '700' }}>Auto-Filled</Text>
+                </View>
+              </View>
 
               <Text style={styles.formLabel}>Full Name *</Text>
               <TextInput

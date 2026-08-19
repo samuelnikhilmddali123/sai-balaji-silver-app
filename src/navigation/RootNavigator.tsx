@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Platform, Image, Text } from 'react-native';
-import { Home, LayoutGrid, Briefcase, User } from 'lucide-react-native';
-
+import { View, Platform, Image, Text, TouchableOpacity } from 'react-native';
+import { Home, LayoutGrid, Briefcase, User, Search, ShoppingBag } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HomeScreen } from '../screens/HomeScreen';
@@ -13,32 +13,83 @@ import { WholesaleScreen } from '../screens/WholesaleScreen';
 import { CartScreen } from '../screens/CartScreen';
 import { AccountScreen } from '../screens/AccountScreen';
 import { FloatingCartBar } from '../components/FloatingCartBar';
+import { useCart } from '../context/CartContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const HeaderLogoTitle: React.FC<{ title: string }> = ({ title }) => (
+const HeaderLogoTitle: React.FC<{ title?: string }> = ({ title = 'Sai Balaji Silverworks' }) => (
   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
     <Image
       source={require('../../assets/logo.png')}
-      style={{ width: 28, height: 28, borderRadius: 14 }}
+      style={{ width: 26, height: 26, borderRadius: 13 }}
       resizeMode="contain"
     />
     <Text
       style={{
-        color: '#111827',
-        fontSize: 17,
-        fontWeight: 'bold',
+        color: '#111111',
+        fontSize: 16,
+        fontWeight: '700',
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        letterSpacing: 0.3,
       }}
+      numberOfLines={1}
     >
       {title}
     </Text>
   </View>
 );
 
+const HeaderRightIcons: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const { totalItemsCount } = useCart();
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginRight: 16 }}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Categories')}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        activeOpacity={0.7}
+      >
+        <Search color="#111111" size={20} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Cart')}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        activeOpacity={0.7}
+        style={{ position: 'relative' }}
+      >
+        <ShoppingBag color="#111111" size={20} />
+        {totalItemsCount > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -6,
+              backgroundColor: '#111111',
+              minWidth: 16,
+              height: 16,
+              borderRadius: 8,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingHorizontal: 3,
+              borderWidth: 1.5,
+              borderColor: '#FFFFFF',
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 8, fontWeight: '800' }}>
+              {totalItemsCount}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 const TabNavigator = () => {
   const insets = useSafeAreaInsets();
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 8;
 
   return (
     <Tab.Navigator
@@ -48,28 +99,33 @@ const TabNavigator = () => {
           elevation: 0,
           shadowOpacity: 0,
           borderBottomWidth: 1,
-          borderBottomColor: '#EBF0F0',
+          borderBottomColor: '#F0EFEA',
+          height: Platform.OS === 'ios' ? 44 + insets.top : 56,
         },
-        headerTintColor: '#2D6A68',
+        headerTitleAlign: 'left',
+        headerRight: () => <HeaderRightIcons />,
+        headerTintColor: '#111111',
         tabBarStyle: {
-          backgroundColor: '#2D6A68',
-          position: 'absolute',
-          bottom: insets.bottom > 0 ? insets.bottom : 12,
-          left: 16,
-          right: 16,
-          borderRadius: 28,
-          height: 60,
-          borderTopWidth: 0,
-          paddingBottom: 6,
+          backgroundColor: '#FFFFFF',
+          height: 56 + bottomInset,
+          borderTopWidth: 1,
+          borderTopColor: '#E5E5E0',
+          paddingBottom: bottomInset,
           paddingTop: 6,
-          shadowColor: '#2D6A68',
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
           elevation: 8,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
         },
-        tabBarActiveTintColor: '#FFFFFF',
-        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.55)',
+        tabBarActiveTintColor: '#111111',
+        tabBarInactiveTintColor: '#898985',
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          letterSpacing: 0.2,
+          marginTop: 1,
+        },
       }}
     >
       <Tab.Screen
@@ -78,7 +134,7 @@ const TabNavigator = () => {
         options={{
           headerTitle: () => <HeaderLogoTitle title="Sai Balaji Silverworks" />,
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Home color={color} size={20} />,
         }}
       />
       <Tab.Screen
@@ -87,7 +143,7 @@ const TabNavigator = () => {
         options={{
           headerTitle: () => <HeaderLogoTitle title="Silver Collections" />,
           tabBarLabel: 'Categories',
-          tabBarIcon: ({ color, size }) => <LayoutGrid color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <LayoutGrid color={color} size={20} />,
         }}
       />
       <Tab.Screen
@@ -96,16 +152,16 @@ const TabNavigator = () => {
         options={{
           headerTitle: () => <HeaderLogoTitle title="B2B Wholesale" />,
           tabBarLabel: 'Wholesale',
-          tabBarIcon: ({ color, size }) => <Briefcase color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Briefcase color={color} size={20} />,
         }}
       />
       <Tab.Screen
         name="Account"
         component={AccountScreen}
         options={{
-          headerTitle: () => <HeaderLogoTitle title="User Account" />,
+          headerTitle: () => <HeaderLogoTitle title="Account" />,
           tabBarLabel: 'Account',
-          tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <User color={color} size={20} />,
         }}
       />
     </Tab.Navigator>

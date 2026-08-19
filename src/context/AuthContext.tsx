@@ -28,23 +28,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const fetchAndMergeUserDetails = async (initialUser: User): Promise<User> => {
+    try {
+      const usersRes = await api.get('/users');
+      if (Array.isArray(usersRes.data)) {
+        const matchingUser = usersRes.data.find(
+          (u: any) =>
+            (initialUser.email && u.email?.toLowerCase() === initialUser.email.toLowerCase()) ||
+            (initialUser.id && u.id === initialUser.id)
+        );
+        if (matchingUser) {
+          const streetVal =
+            matchingUser.street_address ||
+            matchingUser.street ||
+            matchingUser.address ||
+            initialUser.street_address ||
+            initialUser.street ||
+            initialUser.address ||
+            '';
+          const cityVal = matchingUser.city || initialUser.city || '';
+          const stateVal = matchingUser.state || initialUser.state || '';
+          const pincodeVal = matchingUser.pincode || initialUser.pincode || '';
+
+          const formattedAddress = [
+            streetVal,
+            cityVal,
+            stateVal ? `${stateVal}${pincodeVal ? ` - ${pincodeVal}` : ''}` : pincodeVal,
+          ]
+            .filter(Boolean)
+            .join('\n');
+
+          const mergedUser: User = {
+            ...initialUser,
+            ...matchingUser,
+            full_name: matchingUser.full_name || initialUser.full_name || '',
+            phone: matchingUser.phone || initialUser.phone || '',
+            street_address: streetVal,
+            street: streetVal,
+            city: cityVal,
+            state: stateVal,
+            pincode: pincodeVal,
+            address: formattedAddress || initialUser.address || '',
+            company_name: matchingUser.company_name || initialUser.company_name || '',
+            gstin: matchingUser.gstin || initialUser.gstin || '',
+          };
+
+          const addressData = {
+            fullName: mergedUser.full_name,
+            phone: mergedUser.phone,
+            street: streetVal,
+            city: cityVal,
+            state: stateVal,
+            pincode: pincodeVal,
+          };
+          await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
+          return mergedUser;
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching /users endpoint in AuthContext:', e);
+    }
+    return initialUser;
+  };
+
   const checkLoggedIn = async () => {
     try {
       const storedToken = await AsyncStorage.getItem('userToken');
       const storedUser = await AsyncStorage.getItem('userData');
-      if (storedToken && storedUser) {
+      if (storedToken) {
         setUserToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        
-        // Refresh profile from server silently
-        try {
-          const res = await api.get('/auth/me');
-          if (res.data) {
-            setUser(res.data);
-            await AsyncStorage.setItem('userData', JSON.stringify(res.data));
-          }
-        } catch (e) {
-          // Token expired or server unreachable
+        let currentUser: User | null = storedUser ? JSON.parse(storedUser) : null;
+        if (currentUser) {
+          setUser(currentUser);
+          const updatedUser = await fetchAndMergeUserDetails(currentUser);
+          setUser(updatedUser);
+          await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
         }
       }
     } catch (e) {
@@ -64,9 +122,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { access_token, user: loggedUser } = res.data;
       if (access_token) {
         setUserToken(access_token);
-        setUser(loggedUser);
         await AsyncStorage.setItem('userToken', access_token);
-        await AsyncStorage.setItem('userData', JSON.stringify(loggedUser));
+        const fullUser = await fetchAndMergeUserDetails(loggedUser || ({ email } as User));
+        setUser(fullUser);
+        await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
         return true;
       }
       return false;
@@ -89,9 +148,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { access_token, user: registeredUser } = res.data;
       if (access_token) {
         setUserToken(access_token);
-        setUser(registeredUser);
         await AsyncStorage.setItem('userToken', access_token);
-        await AsyncStorage.setItem('userData', JSON.stringify(registeredUser));
+        const fullUser = await fetchAndMergeUserDetails(
+          registeredUser || ({ email: payload.email, full_name: payload.full_name } as User)
+        );
+        setUser(fullUser);
+        await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
         return true;
       }
       return false;
@@ -104,6 +166,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateUser = async (updatedUser: User) => {
     setUser(updatedUser);
     await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
+    const streetVal = updatedUser.street_address || updatedUser.street || '';
+    const addressData = {
+      fullName: updatedUser.full_name,
+      phone: updatedUser.phone || '',
+      street: streetVal,
+      city: updatedUser.city || '',
+      state: updatedUser.state || '',
+      pincode: updatedUser.pincode || '',
+    };
+    await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
     try {
       await api.put('/auth/profile', updatedUser);
     } catch (e) {}

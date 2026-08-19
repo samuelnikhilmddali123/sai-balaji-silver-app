@@ -11,16 +11,14 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import { Paths } from 'expo-file-system';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { ShoppingBag, Heart, ShieldCheck, CheckCircle2, MessageCircle, ArrowLeft } from 'lucide-react-native';
+import { ShoppingBag, Heart, ShieldCheck, CheckCircle2, MessageCircle, ArrowLeft, Download } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { Product } from '../types';
 import { getFullImageUrl } from '../services/api';
+import { downloadAndSharePhoto, openWhatsAppDirect } from '../services/photoShare';
 
 const { width } = Dimensions.get('window');
 
@@ -68,31 +66,12 @@ export const ProductDetailScreen: React.FC = () => {
     }
     text += `\nPlease guide me on availability, delivery address & payment details.`;
 
-    if (imgUrl) {
-      try {
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          const fileExt = imgUrl.toLowerCase().endsWith('.webp') ? '.webp' : '.jpg';
-          const cacheDir = (FileSystem as any).cacheDirectory || Paths.cache.uri;
-          const localUri = `${cacheDir}/product_detail_${Date.now()}${fileExt}`;
-          const downloadRes = await FileSystem.downloadAsync(imgUrl, localUri);
+    await openWhatsAppDirect(text, imgUrl);
+  };
 
-          await Sharing.shareAsync(downloadRes.uri, {
-            mimeType: fileExt === '.webp' ? 'image/webp' : 'image/jpeg',
-            dialogTitle: `Share ${product.title} Image to WhatsApp`,
-            UTI: 'public.jpeg',
-          });
-          return;
-        }
-      } catch (err) {
-        console.log('Native photo share error, falling back to WhatsApp URL:', err);
-      }
-    }
-
-    const url = `https://wa.me/919121266269?text=${encodeURIComponent(text)}`;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('WhatsApp Error', 'Could not open WhatsApp on this device.');
-    });
+  const handleSharePhotoOnly = async () => {
+    const imgUrl = getFullImageUrl(selectedImg || product.featured_image);
+    await downloadAndSharePhoto(imgUrl, product.title);
   };
 
   const topInset = Math.max(insets.top + 8, 40);
@@ -101,10 +80,19 @@ export const ProductDetailScreen: React.FC = () => {
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
         
-        {/* Gallery Image Display */}
-        <View style={styles.imageContainer}>
+        {/* Gallery Image Display - Tapping photo downloads photo as JPEG & shares photo */}
+        <TouchableOpacity
+          style={styles.imageContainer}
+          activeOpacity={0.9}
+          onPress={handleSharePhotoOnly}
+        >
           <Image source={{ uri: getFullImageUrl(selectedImg) }} style={styles.mainImage} />
           
+          <View style={styles.imageOverlayBadge}>
+            <Download color="#FFFFFF" size={12} />
+            <Text style={styles.imageOverlayBadgeText}>Tap photo to download & send via WhatsApp</Text>
+          </View>
+
           <TouchableOpacity
             style={[styles.backBtn, { top: topInset }]}
             onPress={() => navigation.goBack()}
@@ -118,7 +106,7 @@ export const ProductDetailScreen: React.FC = () => {
           >
             <Heart color={inWishlist ? '#E53E3E' : '#1A1918'} fill={inWishlist ? '#E53E3E' : 'none'} size={18} />
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
 
         {/* Image Thumbnails if multiple */}
         {product.images && product.images.length > 1 && (
@@ -503,5 +491,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  imageOverlayBadge: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(26, 25, 24, 0.85)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    gap: 6,
+  },
+  imageOverlayBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });

@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { Briefcase, Building2, FileText, CheckCircle2, Phone, Mail } from 'lucide-react-native';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export const WholesaleScreen: React.FC = () => {
+  const { user } = useAuth();
   const [companyName, setCompanyName] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
@@ -33,6 +35,7 @@ export const WholesaleScreen: React.FC = () => {
     setSubmitting(true);
     try {
       const res = await api.post('/wholesale/quote', {
+        user_id: user?.id,
         company_name: companyName,
         contact_person: contactPerson,
         phone,

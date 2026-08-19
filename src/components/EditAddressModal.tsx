@@ -34,23 +34,21 @@ export const EditAddressModal: React.FC<EditAddressModalProps> = ({
   onSave,
   initialData,
 }) => {
-  const [fullName, setFullName] = useState(initialData?.fullName || 'Samuel Nikhil');
-  const [phone, setPhone] = useState(initialData?.phone || '+91 91212 66269');
-  const [street, setStreet] = useState(
-    initialData?.street || 'currency nagar SF1 dno 4/147'
-  );
-  const [city, setCity] = useState(initialData?.city || 'Hyderabad');
-  const [stateName, setStateName] = useState(initialData?.state || 'Telangana');
-  const [pincode, setPincode] = useState(initialData?.pincode || '500033');
+  const [fullName, setFullName] = useState(initialData?.fullName || '');
+  const [phone, setPhone] = useState(initialData?.phone || '');
+  const [street, setStreet] = useState(initialData?.street || '');
+  const [city, setCity] = useState(initialData?.city || '');
+  const [stateName, setStateName] = useState(initialData?.state || '');
+  const [pincode, setPincode] = useState(initialData?.pincode || '');
 
   useEffect(() => {
     if (initialData) {
-      if (initialData.fullName) setFullName(initialData.fullName);
-      if (initialData.phone) setPhone(initialData.phone);
-      if (initialData.street) setStreet(initialData.street);
-      if (initialData.city) setCity(initialData.city);
-      if (initialData.state) setStateName(initialData.state);
-      if (initialData.pincode) setPincode(initialData.pincode);
+      setFullName(initialData.fullName || '');
+      setPhone(initialData.phone || '');
+      setStreet(initialData.street || '');
+      setCity(initialData.city || '');
+      setStateName(initialData.state || '');
+      setPincode(initialData.pincode || '');
     }
   }, [initialData]);
 
