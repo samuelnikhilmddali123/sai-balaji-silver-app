@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,11 @@ import {
   ScrollView,
   Alert,
   Platform,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
-import { MapPin, User, Phone, ArrowRight } from 'lucide-react-native';
+import { MapPin, User, Phone, ArrowRight, ChevronDown } from 'lucide-react-native';
 
 export interface AddressData {
   fullName: string;
@@ -41,6 +44,9 @@ export const EditAddressModal: React.FC<EditAddressModalProps> = ({
   const [stateName, setStateName] = useState(initialData?.state || '');
   const [pincode, setPincode] = useState(initialData?.pincode || '');
 
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
   useEffect(() => {
     if (initialData) {
       setFullName(initialData.fullName || '');
@@ -51,6 +57,22 @@ export const EditAddressModal: React.FC<EditAddressModalProps> = ({
       setPincode(initialData.pincode || '');
     }
   }, [initialData]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleSave = () => {
     if (
@@ -63,7 +85,7 @@ export const EditAddressModal: React.FC<EditAddressModalProps> = ({
     ) {
       Alert.alert(
         'Compulsory Address Details',
-        'Please complete all required fields (Full Name, Phone, Street Address, City, State, Pincode) to save your profile.'
+        'Please complete all required fields (Full Name, Phone, Street Address, City, State, Pincode) to save your profile and complete setup.'
       );
       return;
     }
@@ -85,122 +107,153 @@ export const EditAddressModal: React.FC<EditAddressModalProps> = ({
       transparent
       animationType="fade"
       onRequestClose={() => {
-        // Compulsory setup: prevent back button dismiss unless details are saved
         Alert.alert(
           'Address Required',
-          'Please fill in your address and tap "SAVE DETAILS & CONTINUE".'
+          'Please fill in your delivery details and tap "SAVE ADDRESS & COMPLETE SETUP".'
         );
       }}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modalCard}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Header Icon */}
-            <View style={styles.iconCircle}>
-              <MapPin color="#C5A059" size={24} />
-            </View>
-
-            {/* Title & Tagline */}
-            <Text style={styles.tagline}>PROFILE & DELIVERY SETUP</Text>
-            <Text style={styles.modalTitle}>Welcome! Please Confirm Your Details</Text>
-            <Text style={styles.modalSub}>
-              Provide your name, phone number, and default shipping address for seamless ordering & quotations.
-            </Text>
-
-            {/* FULL NAME */}
-            <Text style={styles.fieldLabel}>FULL NAME *</Text>
-            <View style={styles.inputWithIcon}>
-              <User color="#888888" size={16} />
-              <TextInput
-                style={styles.iconInput}
-                placeholder="Full Name *"
-                placeholderTextColor="#999"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-            </View>
-
-            {/* MOBILE / PHONE NUMBER */}
-            <Text style={styles.fieldLabel}>MOBILE / PHONE NUMBER *</Text>
-            <View style={styles.inputWithIcon}>
-              <Phone color="#888888" size={16} />
-              <TextInput
-                style={styles.iconInput}
-                placeholder="+91 98765 43210 *"
-                placeholderTextColor="#999"
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-              />
-            </View>
-
-            {/* STREET ADDRESS / DOOR NO. */}
-            <Text style={styles.fieldLabel}>STREET ADDRESS / DOOR NO. *</Text>
-            <TextInput
-              style={styles.streetTextArea}
-              placeholder="Door No. / Flat, Building Name, Street, Landmark... *"
-              placeholderTextColor="#999"
-              multiline
-              numberOfLines={3}
-              value={street}
-              onChangeText={setStreet}
-            />
-
-            {/* 3-COLUMN ROW: CITY, STATE, PINCODE */}
-            <View style={styles.threeColRow}>
-              <View style={styles.colItem}>
-                <Text style={styles.fieldLabel}>CITY *</Text>
-                <TextInput
-                  style={styles.smallInput}
-                  placeholder="City *"
-                  placeholderTextColor="#999"
-                  value={city}
-                  onChangeText={setCity}
-                />
-              </View>
-
-              <View style={styles.colItem}>
-                <Text style={styles.fieldLabel}>STATE *</Text>
-                <TextInput
-                  style={styles.smallInput}
-                  placeholder="State *"
-                  placeholderTextColor="#999"
-                  value={stateName}
-                  onChangeText={setStateName}
-                />
-              </View>
-
-              <View style={styles.colItem}>
-                <Text style={styles.fieldLabel}>PINCODE *</Text>
-                <TextInput
-                  style={styles.smallInput}
-                  placeholder="Pincode *"
-                  placeholderTextColor="#999"
-                  keyboardType="numeric"
-                  value={pincode}
-                  onChangeText={setPincode}
-                />
-              </View>
-            </View>
-
-            {/* COMPULSORY SAVE BUTTON */}
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleSave}
-                activeOpacity={0.85}
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={[styles.overlayContainer, keyboardOpen && styles.overlayContainerKeyboard]}>
+            <View style={[styles.modalCard, keyboardOpen && styles.modalCardKeyboard]}>
+              <ScrollView
+                ref={scrollViewRef}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  keyboardOpen && styles.scrollContentKeyboard,
+                ]}
+                keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.saveBtnText}>SAVE DETAILS & CONTINUE</Text>
-                <ArrowRight color="#FFFFFF" size={16} />
-              </TouchableOpacity>
+                {/* Header Icon Badge */}
+                <View style={styles.iconCircle}>
+                  <MapPin color="#C5A059" size={24} />
+                </View>
+
+                {/* Title & Tagline */}
+                <Text style={styles.tagline}>PROFILE & DELIVERY SETUP</Text>
+                <Text style={styles.modalTitle}>Welcome! Please Confirm Your Details</Text>
+                <Text style={styles.modalSub}>
+                  Provide your name, phone number, and default shipping address for seamless ordering & quotations.
+                </Text>
+
+                {/* FULL NAME */}
+                <Text style={styles.fieldLabel}>FULL NAME *</Text>
+                <View style={styles.inputWithIcon}>
+                  <User color="#999999" size={16} />
+                  <TextInput
+                    style={styles.iconInput}
+                    placeholder="Full Name *"
+                    placeholderTextColor="#999999"
+                    value={fullName}
+                    onChangeText={setFullName}
+                  />
+                </View>
+
+                {/* MOBILE / PHONE NUMBER */}
+                <Text style={styles.fieldLabel}>MOBILE / PHONE NUMBER *</Text>
+                <View style={styles.phoneInputRow}>
+                  <View style={styles.countryPickerBadge}>
+                    <Text style={styles.flagEmoji}>🇮🇳</Text>
+                    <Text style={styles.countryCodeText}>+91</Text>
+                    <ChevronDown size={14} color="#666666" />
+                  </View>
+                  <TextInput
+                    style={styles.phoneInput}
+                    placeholder="98765 43210"
+                    placeholderTextColor="#999999"
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={setPhone}
+                  />
+                </View>
+
+                {/* STREET ADDRESS / DOOR NO. */}
+                <Text style={styles.fieldLabel}>STREET ADDRESS / DOOR NO. *</Text>
+                <TextInput
+                  style={styles.streetTextArea}
+                  placeholder="Door No. / Flat, Building Name, Street, Landmark..."
+                  placeholderTextColor="#999999"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  value={street}
+                  onChangeText={setStreet}
+                />
+
+                {/* 3-COLUMN ROW: CITY, STATE, PINCODE */}
+                <View style={styles.threeColRow}>
+                  <View style={styles.colItem}>
+                    <Text style={styles.fieldLabel}>CITY *</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      placeholder="City"
+                      placeholderTextColor="#999999"
+                      value={city}
+                      onChangeText={setCity}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollToEnd({ animated: true });
+                        }, 120);
+                      }}
+                    />
+                  </View>
+
+                  <View style={styles.colItem}>
+                    <Text style={styles.fieldLabel}>STATE *</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      placeholder="State"
+                      placeholderTextColor="#999999"
+                      value={stateName}
+                      onChangeText={setStateName}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollToEnd({ animated: true });
+                        }, 120);
+                      }}
+                    />
+                  </View>
+
+                  <View style={styles.colItem}>
+                    <Text style={styles.fieldLabel}>PINCODE *</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      placeholder="Pincode"
+                      placeholderTextColor="#999999"
+                      keyboardType="numeric"
+                      value={pincode}
+                      onChangeText={setPincode}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollToEnd({ animated: true });
+                        }, 120);
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* SAVE BUTTON */}
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={styles.saveBtn}
+                    onPress={handleSave}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.saveBtnText}>SAVE ADDRESS & COMPLETE SETUP</Text>
+                    <ArrowRight color="#FFFFFF" size={16} />
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
-          </ScrollView>
-        </View>
-      </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -209,9 +262,16 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(26, 25, 24, 0.75)',
+  },
+  overlayContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+  },
+  overlayContainerKeyboard: {
+    justifyContent: 'flex-end',
+    paddingBottom: Platform.OS === 'android' ? 8 : 16,
   },
   modalCard: {
     width: '100%',
@@ -227,9 +287,15 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
+  modalCardKeyboard: {
+    maxHeight: '100%',
+  },
   scrollContent: {
     padding: 20,
     alignItems: 'center',
+  },
+  scrollContentKeyboard: {
+    paddingBottom: 24,
   },
   iconCircle: {
     width: 52,
@@ -244,10 +310,11 @@ const styles = StyleSheet.create({
   },
   tagline: {
     color: '#C5A059',
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '800',
     letterSpacing: 1.5,
     marginBottom: 4,
+    textTransform: 'uppercase',
   },
   modalTitle: {
     color: '#1A1918',
@@ -259,7 +326,7 @@ const styles = StyleSheet.create({
   },
   modalSub: {
     color: '#666666',
-    fontSize: 11,
+    fontSize: 11.5,
     textAlign: 'center',
     lineHeight: 16,
     marginBottom: 16,
@@ -267,11 +334,12 @@ const styles = StyleSheet.create({
   fieldLabel: {
     alignSelf: 'flex-start',
     color: '#334155',
-    fontSize: 9,
+    fontSize: 9.5,
     fontWeight: '800',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 6,
     marginTop: 10,
+    textTransform: 'uppercase',
   },
   inputWithIcon: {
     width: '100%',
@@ -282,8 +350,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
+    paddingVertical: 11,
+    gap: 10,
   },
   iconInput: {
     flex: 1,
@@ -291,18 +359,52 @@ const styles = StyleSheet.create({
     color: '#1A1918',
     padding: 0,
   },
+  phoneInputRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF9F5',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  countryPickerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    backgroundColor: '#FAF9F5',
+    borderRightWidth: 1,
+    borderRightColor: '#E2E8F0',
+  },
+  flagEmoji: {
+    fontSize: 15,
+  },
+  countryCodeText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1A1918',
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1A1918',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
   streetTextArea: {
     width: '100%',
     backgroundColor: '#FAF9F5',
-    borderWidth: 1.5,
-    borderColor: '#C5A059',
-    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
     color: '#1A1918',
     minHeight: 70,
-    textAlignVertical: 'top',
   },
   threeColRow: {
     width: '100%',
@@ -320,12 +422,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    fontSize: 12,
+    fontSize: 12.5,
     color: '#1A1918',
   },
   actionRow: {
     width: '100%',
-    marginTop: 24,
+    marginTop: 22,
   },
   saveBtn: {
     width: '100%',
@@ -349,3 +451,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
+

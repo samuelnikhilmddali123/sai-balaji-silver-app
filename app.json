@@ -4,10 +4,10 @@
     "slug": "saibalaji-silverworks-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon.webp",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash.webp",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
@@ -15,13 +15,18 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.saibalajiecommerce",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.webp",
         "backgroundColor": "#FFFFFF"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.webp"
+    },
+    "plugins": [
+      "@react-native-google-signin/google-signin"
+    ]
   }
 }

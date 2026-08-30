@@ -27,12 +27,15 @@ import {
   Sparkles,
   Tag,
   MapPin,
+  Briefcase,
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
-import api, { getProductImageUrl, getFullImageUrl } from '../services/api';
+import api, { orderApi, wholesaleApi, getProductImageUrl, getFullImageUrl } from '../services/api';
 
 export const CartScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const {
@@ -120,6 +123,21 @@ export const CartScreen: React.FC = () => {
   const progressPercent = Math.min(100, Math.round((totalQuantity / WHOLESALE_MOQ) * 100));
 
   const handleWhatsAppOrder = async () => {
+    if (!user) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to your account to place orders or make inquiries via WhatsApp.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Sign In / Register',
+            onPress: () => navigation.navigate('Account'),
+          },
+        ]
+      );
+      return;
+    }
+
     const name = customerName.trim() || user?.full_name || 'Customer';
     const phone = customerPhone.trim() || user?.phone || 'Not Provided';
     const address = shippingAddress.trim() || user?.address || 'Default Address';
@@ -196,6 +214,35 @@ export const CartScreen: React.FC = () => {
         });
 
         const data = response.data;
+        const savedRecord = {
+          id: data.quote_id || data.request_number || data.id || `SBS-QT-${Date.now()}`,
+          order_number: data.request_number || data.quote_id || `SBS-QT-${Date.now()}`,
+          user_id: user?.id,
+          customer_name: name,
+          customer_phone: phone,
+          customer_email: user?.email || '',
+          shipping_address: address,
+          items: effectiveCartItems.map((i) => ({
+            product_id: i.product.id,
+            title: i.product.title,
+            product_name: i.product.title,
+            product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+            quantity: i.quantity,
+            unit_price: i.effectivePrice,
+            subtotal: i.itemSubtotal,
+            featured_image: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+            image_url: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+          })),
+          grand_total: grandTotal,
+          status: 'PENDING',
+          created_at: new Date().toISOString(),
+          order_type: 'wholesale' as const,
+        };
+        AsyncStorage.getItem('user_saved_orders').then((str) => {
+          const list = str ? JSON.parse(str) : [];
+          AsyncStorage.setItem('user_saved_orders', JSON.stringify([savedRecord, ...list]));
+        }).catch(() => {});
+
         setCheckoutSuccess(
           `Wholesale Quote Submitted & Sent to WhatsApp! Ref ID: ${data.quote_id || data.request_number || data.id || 'SBS-QT-1002'}`
         );
@@ -228,11 +275,69 @@ export const CartScreen: React.FC = () => {
         });
 
         const data = response.data;
+        const savedRecord = {
+          id: data.order_number || data.id || `SBS-ORD-${Date.now()}`,
+          order_number: data.order_number || data.id || `SBS-ORD-${Date.now()}`,
+          user_id: user?.id,
+          customer_name: name,
+          customer_phone: phone,
+          customer_email: user?.email || '',
+          shipping_address: address,
+          items: effectiveCartItems.map((i) => ({
+            product_id: i.product.id,
+            title: i.product.title,
+            product_name: i.product.title,
+            product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+            quantity: i.quantity,
+            unit_price: i.effectivePrice,
+            subtotal: i.itemSubtotal,
+            featured_image: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+            image_url: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+          })),
+          grand_total: grandTotal,
+          status: 'Order Placed',
+          created_at: new Date().toISOString(),
+          order_type: 'retail' as const,
+        };
+        AsyncStorage.getItem('user_saved_orders').then((str) => {
+          const list = str ? JSON.parse(str) : [];
+          AsyncStorage.setItem('user_saved_orders', JSON.stringify([savedRecord, ...list]));
+        }).catch(() => {});
+
         setCheckoutSuccess(
           `Retail Order Submitted & Sent to WhatsApp! Order #: ${data.order_number || data.id || 'SBS-ORD-5001'}`
         );
       }
     } catch (e) {
+      const fallbackRecord = {
+        id: `SBS-ORD-${Date.now()}`,
+        order_number: `SBS-ORD-${Date.now()}`,
+        user_id: user?.id,
+        customer_name: name,
+        customer_phone: phone,
+        customer_email: user?.email || '',
+        shipping_address: address,
+        items: effectiveCartItems.map((i) => ({
+          product_id: i.product.id,
+          title: i.product.title,
+          product_name: i.product.title,
+          product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+          quantity: i.quantity,
+          unit_price: i.effectivePrice,
+          subtotal: i.itemSubtotal,
+          featured_image: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+          image_url: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+        })),
+        grand_total: grandTotal,
+        status: isWholesale ? 'PENDING' : 'Order Placed',
+        created_at: new Date().toISOString(),
+        order_type: isWholesale ? ('wholesale' as const) : ('retail' as const),
+      };
+      AsyncStorage.getItem('user_saved_orders').then((str) => {
+        const list = str ? JSON.parse(str) : [];
+        AsyncStorage.setItem('user_saved_orders', JSON.stringify([fallbackRecord, ...list]));
+      }).catch(() => {});
+
       setCheckoutSuccess('Your Order has been submitted and sent to WhatsApp!');
     } finally {
       clearCart();
@@ -248,69 +353,88 @@ export const CartScreen: React.FC = () => {
     setLoading(true);
     setCheckoutSuccess(null);
 
+    const itemsPayload = effectiveCartItems.map((i) => {
+      const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
+      const fullImg = getFullImageUrl(relImg);
+      return {
+        product_id: i.product.id,
+        title: i.product.title,
+        product_name: i.product.title,
+        product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+        quantity: i.quantity,
+        price: i.effectivePrice,
+        unit_price: i.effectivePrice,
+        featured_image: relImg,
+        image_url: relImg,
+        image: relImg,
+        full_image_url: fullImg,
+        full_featured_image: fullImg,
+      };
+    });
+
     try {
       if (isWholesale) {
-        // Wholesale Quote Submission
-        const response = await api.post('/wholesale/quote', {
-          user_id: user?.id,
+        // Wholesale Quote Submission (POST /wholesale/requests or POST /wholesale/quote)
+        const response = await wholesaleApi.submitRequest({
           company_name: companyName.trim() || customerName.trim(),
+          gst_number: gstin.trim() || '',
+          gstin: gstin.trim() || '',
+          products: itemsPayload,
+          note: `Cart Wholesale Quote for ${totalQuantity} items`,
+          requirements: `Cart Wholesale Quote for ${totalQuantity} items`,
           contact_person: customerName.trim(),
           phone: customerPhone.trim(),
           email: user?.email || '',
-          gstin: gstin.trim() || '',
-          product_requirements: `Cart Wholesale Quote for ${totalQuantity} items`,
-          items: effectiveCartItems.map((i) => {
-            const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
-            const fullImg = getFullImageUrl(relImg);
-            return {
-              product_id: i.product.id,
-              title: i.product.title,
-              product_name: i.product.title,
-              product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
-              quantity: i.quantity,
-              unit_price: i.effectivePrice,
-              featured_image: relImg,
-              image_url: relImg,
-              image: relImg,
-              full_image_url: fullImg,
-              full_featured_image: fullImg,
-            };
-          }),
-          estimated_total: grandTotal,
+          items: itemsPayload,
+          user_id: user?.id,
         });
 
-        const data = response.data;
+        const data = response?.data || {};
+        const savedRecord = {
+          id: data.quote_id || data.request_number || data.id || `SBS-QT-${Date.now()}`,
+          order_number: data.request_number || data.quote_id || `SBS-QT-${Date.now()}`,
+          user_id: user?.id,
+          customer_name: customerName.trim() || user?.full_name || 'Wholesale Client',
+          customer_phone: customerPhone.trim() || user?.phone || '',
+          customer_email: user?.email || '',
+          shipping_address: shippingAddress.trim() || 'Default Address',
+          items: effectiveCartItems.map((i) => ({
+            product_id: i.product.id,
+            title: i.product.title,
+            product_name: i.product.title,
+            product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
+            quantity: i.quantity,
+            unit_price: i.effectivePrice,
+            subtotal: i.itemSubtotal,
+            featured_image: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+            image_url: i.product.featured_image || (i.product.images && i.product.images[0]) || '',
+          })),
+          grand_total: grandTotal,
+          status: 'Order Accepted',
+          created_at: new Date().toISOString(),
+          order_type: 'wholesale' as const,
+        };
+        AsyncStorage.getItem('user_saved_orders').then((str) => {
+          const list = str ? JSON.parse(str) : [];
+          AsyncStorage.setItem('user_saved_orders', JSON.stringify([savedRecord, ...list]));
+        }).catch(() => {});
+
         setCheckoutSuccess(
-          `Wholesale Quote Submitted! Ref ID: ${data.quote_id || data.request_number || data.id || 'SBS-QT-1002'}`
+          `Wholesale Booking Submitted Successfully! Booking Ref #: ${savedRecord.order_number}`
         );
         clearCart();
       } else {
-        // Retail Order Submission
-        const response = await api.post('/orders', {
+        // Retail Order Submission (POST /orders with { items, shipping_address, payment_method, total_amount })
+        const response = await orderApi.createOrder({
           user_id: user?.id,
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           customer_email: user?.email || '',
           shipping_address: shippingAddress.trim() || 'Default Address',
-          items: effectiveCartItems.map((i) => {
-            const relImg = i.product.featured_image || (i.product.images && i.product.images[0]) || i.product.image_url || '';
-            const fullImg = getFullImageUrl(relImg);
-            return {
-              product_id: i.product.id,
-              title: i.product.title,
-              product_name: i.product.title,
-              product_sku: i.product.sku || `SBS-PA-${i.product.id}`,
-              quantity: i.quantity,
-              price: i.effectivePrice,
-              unit_price: i.effectivePrice,
-              featured_image: relImg,
-              image_url: relImg,
-              image: relImg,
-              full_image_url: fullImg,
-              full_featured_image: fullImg,
-            };
-          }),
+          payment_method: 'COD_OR_WHATSAPP',
+          total_amount: grandTotal,
           grand_total: grandTotal,
+          items: itemsPayload,
         });
 
         const data = response.data;
@@ -353,7 +477,7 @@ export const CartScreen: React.FC = () => {
     <View style={{ flex: 1, backgroundColor: '#F4F6F6' }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1, padding: 16, paddingBottom: 110 }}
+        contentContainerStyle={{ flexGrow: 1, padding: 16, paddingBottom: Math.max(insets.bottom + 110, 110) }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -407,6 +531,7 @@ export const CartScreen: React.FC = () => {
               <Image
                 source={{ uri: getProductImageUrl(item.product) }}
                 style={styles.itemImg}
+                resizeMode="contain"
               />
 
               <View style={styles.itemDetails}>
@@ -567,33 +692,37 @@ export const CartScreen: React.FC = () => {
                 <Text style={styles.grandTotalVal}>₹{grandTotal.toLocaleString('en-IN')}</Text>
               </View>
 
-              {/* ORDER ON WHATSAPP BUTTON */}
-              <TouchableOpacity
-                style={styles.whatsappActionBtn}
-                onPress={handleWhatsAppOrder}
-                activeOpacity={0.85}
-              >
-                <MessageCircle color="#FFFFFF" size={20} />
-                <Text style={styles.whatsappActionBtnText}>
-                  ORDER {isWholesale ? 'WHOLESALE CART' : 'RETAIL CART'} ON WHATSAPP
-                </Text>
-              </TouchableOpacity>
-
-              {/* DIRECT CHECKOUT BUTTON */}
-              <TouchableOpacity
-                style={styles.directCheckoutBtn}
-                onPress={handleCheckout}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#1A1918" size="small" />
-                ) : (
-                  <Text style={styles.directCheckoutBtnText}>
-                    {isWholesale ? 'SUBMIT B2B QUOTE REQUEST' : 'PLACE RETAIL ORDER DIRECTLY'}
+              {/* WHLESALE BOOKING VS RETAIL WHATSAPP BUTTON */}
+              {isWholesale ? (
+                <TouchableOpacity
+                  style={styles.wholesaleBookingBtn}
+                  onPress={handleCheckout}
+                  disabled={loading}
+                  activeOpacity={0.88}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Briefcase color="#FFFFFF" size={18} />
+                      <Text style={styles.wholesaleBookingBtnText}>
+                        SUBMIT WHOLESALE BOOKING
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.whatsappActionBtn, { marginBottom: 0 }]}
+                  onPress={handleWhatsAppOrder}
+                  activeOpacity={0.85}
+                >
+                  <MessageCircle color="#FFFFFF" size={20} />
+                  <Text style={styles.whatsappActionBtnText}>
+                    ORDER RETAIL CART ON WHATSAPP
                   </Text>
-                )}
-              </TouchableOpacity>
+                </TouchableOpacity>
+              )}
             </View>
           </>
         )}
@@ -733,10 +862,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   itemImg: {
-    width: 85,
-    height: 85,
+    width: 90,
+    height: 60,
     borderRadius: 14,
-    backgroundColor: '#F7F6F2',
+    backgroundColor: '#000000',
+    padding: 3,
+    resizeMode: 'contain',
   },
   itemDetails: {
     flex: 1,
@@ -843,7 +974,7 @@ const styles = StyleSheet.create({
   grandTotalVal: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2D6A68',
+    color: '#121767',
   },
   whatsappActionBtn: {
     backgroundColor: '#25D366',
@@ -861,13 +992,33 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  wholesaleBookingBtn: {
+    backgroundColor: '#121767',
+    paddingVertical: 14,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#121767',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  wholesaleBookingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
   directCheckoutBtn: {
-    backgroundColor: '#2D6A68',
+    backgroundColor: '#121767',
     paddingVertical: 14,
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D6A68',
+    shadowColor: '#121767',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -896,7 +1047,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   continueBtn: {
-    backgroundColor: '#2D6A68',
+    backgroundColor: '#121767',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,

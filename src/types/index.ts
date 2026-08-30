@@ -1,10 +1,33 @@
+export interface SubCategoryItem {
+  name: string;
+  slug?: string;
+  sub_subcategories?: string[];
+}
+
 export interface Category {
   id: number;
   name: string;
   slug: string;
   description: string;
   image_url: string;
-  subcategories?: string[];
+  subcategories?: (string | SubCategoryItem)[];
+  subcategories_count?: number;
+}
+
+export interface ProductVariant {
+  id?: number | string;
+  size?: string;
+  label?: string;
+  name?: string;
+  weight_g: number;
+  retail_price?: number;
+  price?: number;
+  wholesale_price?: number;
+  sku?: string;
+  stock?: number;
+  dimensions?: string;
+  height?: string;
+  diameter?: string;
 }
 
 export interface Product {
@@ -15,6 +38,7 @@ export interface Product {
   category_id: number;
   category_slug: string;
   subcategory?: string;
+  sub_subcategory?: string;
   silver_purity: string;
   weight_g: number;
   retail_price: number;
@@ -27,12 +51,17 @@ export interface Product {
   featured_image?: string;
   image_url?: string;
   category?: Category;
+  variants?: ProductVariant[];
+  sizes?: ProductVariant[];
+  selected_variant?: ProductVariant;
 }
 
 export interface User {
   id: number;
   email: string;
   full_name: string;
+  photo_url?: string;
+  firebase_uid?: string;
   phone?: string;
   company_name?: string;
   gstin?: string;
@@ -94,15 +123,23 @@ export interface OrderItem {
   product_id: number;
   product_name?: string;
   product_sku?: string;
+  sku?: string;
   title?: string;
   unit_price: number;
+  price?: number;
   quantity: number;
   subtotal?: number;
   featured_image?: string;
+  image_url?: string;
+  size?: string;
+  measurement?: string;
+  weight_g?: number;
+  weight?: string;
+  variant?: any;
 }
 
 export interface Order {
-  id: number;
+  id: number | string;
   order_number: string;
   user_id?: number;
   customer_name: string;

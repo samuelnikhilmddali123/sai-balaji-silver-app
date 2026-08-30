@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "692516345900",
+    "project_id": "sai-balajji",
+    "storage_bucket": "sai-balajji.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:692516345900:android:0303872ae00016359ed989",
+        "android_client_info": {
+          "package_name": "com.saibalajiecommerce"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "692516345900-7g4cs08iuq45teemogsj8vjcp5qthgla.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.saibalajiecommerce",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyANoA9l_iHEBEPhCmGJTSIj2kJUUBIBt8Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

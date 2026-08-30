@@ -1,426 +1,367 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
-  ActivityIndicator,
-  Dimensions,
+  Image,
   Platform,
-  Modal,
   StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  ArrowRight,
-  ChevronRight,
-  Play,
-  X,
-} from 'lucide-react-native';
-import api, { getFullImageUrl } from '../services/api';
-import { Category, Product } from '../types';
-import { ProductCard } from '../components/ProductCard';
+import { ArrowRight, Check, Sparkles, Briefcase, Award, ShieldCheck, Truck } from 'lucide-react-native';
+import { catalogApi, getFullImageUrl } from '../services/api';
 
-const { width } = Dimensions.get('window');
-
-// Manufacturing Steps (Compact 4-Step Workflow)
-const manufacturingSteps = [
-  {
-    num: '01',
-    name: 'Induction Casting',
-    desc: 'High-vacuum melting of 99.9% fine silver bullion.',
-  },
-  {
-    num: '02',
-    name: 'Precision Forming',
-    desc: 'Hydraulic minting & sheet forming for dense structural durability.',
-  },
-  {
-    num: '03',
-    name: 'Nakshi Engraving',
-    desc: 'Hand-sculpted temple iconographies and detailed relief carving.',
-  },
-  {
-    num: '04',
-    name: 'Finishing',
-    desc: 'Pin polishing & protective nano anti-tarnish coating.',
-  },
-];
-
-// Fallback Main Collections if API categories are loading or empty
 const DEFAULT_MAIN_CATEGORIES = [
   {
     id: 1,
     name: 'Silver Pooja Articles',
     slug: 'silver-pooja-articles',
-    description: 'Handcrafted 999 fine silver idols, sacred deepams, and thalis.',
-    image_url: 'https://images.unsplash.com/photo-1608755728617-aefab37d2edd?auto=format&fit=crop&w=800&q=80',
+    description: 'Sacred 925 sterling & 999 fine silver ritual essentials, deepams, thalis, and puja accessories.',
+    subcategories_count: 4,
+    image_url: '/public/Saibalaji products S/Floral Engraved Silver Pooja Thali Set.webp',
   },
   {
     id: 2,
-    name: 'Silver God & Temple',
-    slug: 'silver-temple-items',
-    description: 'Grand Balaji idols, silver kalasham, and ritual temple vessels.',
-    image_url: 'https://images.unsplash.com/photo-1600003014755-ba31aa59c4b6?auto=format&fit=crop&w=800&q=80',
+    name: 'Silver Dining & Tableware',
+    slug: 'silver-dining-tableware',
+    description: 'Luxury 925 sterling dinner sets, tumblers, bowls, trays, and royal silverware.',
+    subcategories_count: 5,
+    image_url: '/public/Saibalaji products S/Royal Floral Crest Silver Serving Tray.webp',
   },
   {
     id: 3,
-    name: 'Silver Dining',
-    slug: 'silver-dining-tableware',
-    description: 'Luxury 925 sterling dinner sets, tumblers, and serving bowls.',
-    image_url: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=800&q=80',
+    name: 'Silver God & Temple Items',
+    slug: 'silver-god-temple-items',
+    description: 'Hand-crafted 999 fine silver deities, sanctum adornments, frames, and temple accessories.',
+    subcategories_count: 2,
+    image_url: '/public/Saibalaji products S/Elegant Silver Lakshmi Devi Idol with Ornate Arch.webp',
   },
   {
     id: 4,
-    name: 'Silver Gifts',
-    slug: 'silver-coins-bars',
-    description: '99.9% spectrometer tested silver coins, bars, and heirloom gifts.',
-    image_url: 'https://images.unsplash.com/photo-1616038242814-a6eac7f46688?auto=format&fit=crop&w=800&q=80',
+    name: 'Silver Wedding & Return Gifts',
+    slug: 'silver-wedding-return-gifts',
+    description: 'Memorable silver keepsakes, return gift sets, engraved storage boxes, and custom wedding tokens.',
+    subcategories_count: 2,
+    image_url: '/public/Saibalaji products S/Shree Divya Silver Masala Box Set.webp',
   },
 ];
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  // State
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-
-  const fetchData = async () => {
-    try {
-      const [catRes, prodRes] = await Promise.all([
-        api.get('/categories'),
-        api.get('/products?is_featured=true&limit=10'),
-      ]);
-      const fetchedCats = Array.isArray(catRes.data) ? catRes.data : [];
-      setCategories(fetchedCats.length > 0 ? fetchedCats : (DEFAULT_MAIN_CATEGORIES as any));
-      setFeaturedProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
-    } catch (err) {
-      console.error('Error fetching homepage data:', err);
-      setCategories(DEFAULT_MAIN_CATEGORIES as any);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [categories, setCategories] = useState<any[]>(DEFAULT_MAIN_CATEGORIES);
 
   useEffect(() => {
-    fetchData();
+    catalogApi.getCategories()
+      .then((res) => {
+        if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+          const mapped = res.data.map((cat: any) => ({
+            ...cat,
+            subcategories_count: cat.subcategories ? cat.subcategories.length : (cat.subcategories_count || 3),
+            image_url: cat.image_url || '',
+          }));
+          setCategories(mapped);
+        }
+      })
+      .catch((err) => {
+        console.log('Using default categories with backend image URLs fallback');
+      });
   }, []);
-
-  // Display top 4 categories mapped dynamically
-  const displayCategories = categories.length >= 4 ? categories.slice(0, 4) : DEFAULT_MAIN_CATEGORIES;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FAF8F5" />
 
       <ScrollView
-        ref={scrollViewRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 110 + (insets.bottom > 0 ? insets.bottom : 8) }}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom + 24, 48) },
+        ]}
         showsVerticalScrollIndicator={false}
-        nestedScrollEnabled={true}
-        keyboardShouldPersistTaps="handled"
       >
-        {/* 01. PREMIUM HERO SECTION */}
+        {/* HERO CONTENT CONTAINER */}
         <View style={styles.heroContainer}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1608755728617-aefab37d2edd?auto=format&fit=crop&w=1200&q=80',
-            }}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <View style={styles.heroOverlay}>
-            <View style={styles.heroContent}>
-              <Text style={styles.heroEyebrow}>EST. 1998 · TENALI</Text>
+          {/* Eyebrow Pill */}
+          <View style={styles.eyebrowPill}>
+            <View style={styles.eyebrowDot} />
+            <Text style={styles.eyebrowPillText}>EST. 2019  • TENALI, INDIA</Text>
+          </View>
 
-              <Text style={styles.heroHeadline}>
-                CRAFTED IN PURE{'\n'}
-                <Text style={styles.heroHeadlineItalic}>SILVER.</Text>
-              </Text>
+          {/* Sub Header */}
+          <Text style={styles.brandSubHeader}>SAI BALAJI SILVER</Text>
 
-              <Text style={styles.heroDesc}>
-                Handcrafted silver creations made with precision, heritage and exceptional purity.
-              </Text>
+          {/* Hero Title Lockup */}
+          <View style={styles.titleLockup}>
+            <Text style={styles.heroTitleMain}>CRAFTED IN</Text>
+            <Text style={styles.heroTitleNavy}>PURE SILVER.</Text>
+          </View>
 
-              <View style={styles.heroCtaRow}>
-                <TouchableOpacity
-                  style={styles.heroPrimaryBtn}
-                  onPress={() => navigation.navigate('Categories')}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.heroPrimaryBtnText}>EXPLORE COLLECTIONS</Text>
-                  <ArrowRight color="#111111" size={14} />
-                </TouchableOpacity>
+          {/* Body Paragraph */}
+          <Text style={styles.heroSubtitle}>
+            Three decades of South Indian craftsmanship, metallurgical precision and 100% NABL-certified silver — shaped in Tenali.
+          </Text>
 
-                <TouchableOpacity
-                  style={styles.heroSecondaryBtn}
-                  onPress={() => navigation.navigate('Wholesale')}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.heroSecondaryBtnText}>WHOLESALE →</Text>
-                </TouchableOpacity>
+          {/* Checkmark Features Row */}
+          <View style={styles.certRow}>
+            <View style={styles.certBadge}>
+              <Check size={14} color="#B5985B" strokeWidth={2.5} />
+              <Text style={styles.certText}>999 FINE SILVER</Text>
+            </View>
+
+            <Text style={styles.certDot}>•</Text>
+
+            <View style={styles.certBadge}>
+              <Check size={14} color="#B5985B" strokeWidth={2.5} />
+              <Text style={styles.certText}>925 STERLING</Text>
+            </View>
+
+            <Text style={styles.certDot}>•</Text>
+
+            <View style={styles.certBadge}>
+              <Check size={14} color="#B5985B" strokeWidth={2.5} />
+              <Text style={styles.certText}>NABL HALLMARKED</Text>
+            </View>
+          </View>
+
+          {/* Primary CTA Button */}
+          <TouchableOpacity
+            style={styles.exploreBtn}
+            onPress={() => navigation.navigate('Categories')}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.exploreBtnText}>EXPLORE COLLECTION</Text>
+            <ArrowRight size={16} color="#FFFFFF" strokeWidth={2} />
+          </TouchableOpacity>
+
+          {/* Secondary SHOP SILVER Button */}
+          <TouchableOpacity
+            style={styles.shopSilverBtn}
+            onPress={() => navigation.navigate('Categories')}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.shopSilverBtnText}>SHOP SILVER</Text>
+          </TouchableOpacity>
+
+          {/* HERO SHOWCASE CARD FRAME WITH DEITY IDOL IMAGE */}
+          <View style={styles.showcaseFrame}>
+            <View style={styles.innerShowcaseCard}>
+              <Image
+                source={require('../../assets/homescreen.webp')}
+                style={styles.showcaseImage}
+                resizeMode="cover"
+              />
+
+              {/* Floating Pill Badge */}
+              <View style={styles.floatingBadge}>
+                <Sparkles size={15} color="#B5985B" />
+                <Text style={styles.floatingBadgeText}>999 Fine Silver Deity Idol</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* 02. QUICK TRUST INDICATORS */}
-        <View style={styles.trustStrip}>
-          <View style={styles.trustItem}>
-            <Text style={styles.trustNumber}>999</Text>
-            <Text style={styles.trustLabel}>FINE SILVER</Text>
-          </View>
+        {/* BRAND STORY SECTION — EXACT MATCH FOR USER IMAGE */}
+        <View style={styles.brandStorySection}>
+          <Text style={styles.brandStoryEyebrow}>THE HOUSE OF SAI BALAJI</Text>
+          <Text style={styles.brandStoryHeading}>
+            Mastering the art of silver through generations of purity.
+          </Text>
+          <Text style={styles.brandStoryBody}>
+            From Tenali to patrons across India, Sai Balaji Silverworks brings together generations of craftsmanship, purity and precision. Operating from our specialized manufacturing atelier, we bridge classical deity sculpting with NABL-certificated 999 fine & 925 sterling silver formulations.
+          </Text>
+          <View style={styles.brandStoryDivider} />
+        </View>
 
-          <View style={styles.trustDivider} />
+        {/* SILVER PURITY & CERTIFICATION SECTION — EXACT MATCH FOR USER IMAGE */}
+        <View style={styles.puritySection}>
+          <Text style={styles.purityEyebrow}>
+            GUARANTEED METALLURGICAL{'\n'}EXCELLENCE
+          </Text>
+          <Text style={styles.purityHeading}>Silver Purity & Certification</Text>
 
-          <View style={styles.trustItem}>
-            <Text style={styles.trustNumber}>925</Text>
-            <Text style={styles.trustLabel}>STERLING</Text>
-          </View>
+          <View style={styles.purityCardsRow}>
+            {/* CARD 1: 999 FINE SILVER */}
+            <View style={styles.purityCard}>
+              <Text style={styles.purityNumber}>999</Text>
+              <Text style={styles.purityTag}>FINE SILVER</Text>
+              <Text style={styles.purityDesc}>
+                Pure 99.9% fine silver for temple idols, sacred pooja articles, thalis, and investment bullion.
+              </Text>
+            </View>
 
-          <View style={styles.trustDivider} />
+            {/* CARD 2: 925 STERLING SILVER */}
+            <View style={styles.purityCard}>
+              <Text style={styles.purityNumber}>925</Text>
+              <Text style={styles.purityTag}>STERLING SILVER</Text>
+              <Text style={styles.purityDesc}>
+                Precision 92.5% sterling silver for durable dining tableware, baby gifts, and fine ornaments.
+              </Text>
+            </View>
 
-          <View style={styles.trustItem}>
-            <Text style={styles.trustNumber}>25+</Text>
-            <Text style={styles.trustLabel}>YEARS</Text>
-          </View>
-
-          <View style={styles.trustDivider} />
-
-          <View style={styles.trustItem}>
-            <Text style={styles.trustNumber}>TENALI</Text>
-            <Text style={styles.trustLabel}>ATELIER</Text>
+            {/* CARD 3: 7+ YEARS OF LEGACY */}
+            <View style={styles.purityCard}>
+              <Text style={styles.purityNumber}>7+</Text>
+              <Text style={styles.purityTag}>YEARS OF LEGACY</Text>
+              <Text style={styles.purityDesc}>
+                Established South Indian silver manufacturing atelier based in Tenali, Andhra Pradesh.
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* 03. SHOP BY COLLECTION */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionEyebrow}>CURATED FOR YOU</Text>
-            <Text style={styles.sectionTitle}>Shop Collections</Text>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator size="small" color="#111111" style={{ marginVertical: 20 }} />
-          ) : (
-            <View style={styles.collectionsGrid}>
-              {displayCategories.map((cat, idx) => (
-                <TouchableOpacity
-                  key={cat.id || idx}
-                  style={styles.collectionCard}
-                  onPress={() => navigation.navigate('Categories', { categorySlug: cat.slug })}
-                  activeOpacity={0.88}
-                >
-                  <View style={styles.collectionImgWrapper}>
-                    <Image
-                      source={{ uri: getFullImageUrl(cat.image_url) }}
-                      style={styles.collectionImg}
-                      resizeMode="cover"
-                    />
-                  </View>
-                  <View style={styles.collectionDetails}>
-                    <Text style={styles.collectionName} numberOfLines={1}>
-                      {cat.name}
-                    </Text>
-                    <ChevronRight color="#898985" size={14} />
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* 04. FEATURED PRODUCTS */}
-        {featuredProducts.length > 0 && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.sectionEyebrow}>HANDPICKED SILVER</Text>
-                <Text style={styles.sectionTitle}>Featured Creations</Text>
-              </View>
-              <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
-                <Text style={styles.viewAllText}>View All →</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.productCarousel}
-            >
-              {featuredProducts.map((prod) => (
-                <View key={prod.id} style={{ marginRight: 12 }}>
-                  <ProductCard
-                    product={prod}
-                    width={170}
-                    onPress={() => navigation.navigate('ProductDetail', { product: prod })}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* 05. ABOUT THE ATELIER */}
-        <View style={styles.atelierSection}>
-          <Text style={styles.sectionEyebrow}>THE HOUSE OF SILVER</Text>
-          <Text style={styles.atelierHeading}>
-            Generations of craftsmanship.{'\n'}One standard of purity.
-          </Text>
-          <Text style={styles.atelierDesc}>
-            From our atelier in Tenali, we combine traditional craftsmanship with modern precision to create exceptional silver pieces.
-          </Text>
-
-          <View style={styles.atelierImageFrame}>
-            <Image
-              source={{
-                uri: 'https://images.unsplash.com/photo-1600003014755-ba31aa59c4b6?auto=format&fit=crop&w=800&q=80',
-              }}
-              style={styles.atelierImage}
-              resizeMode="cover"
-            />
-          </View>
+        {/* SILVER COLLECTIONS SECTION — EXACT MATCH FOR USER IMAGE */}
+        <View style={styles.collectionsSection}>
+          <Text style={styles.collectionsEyebrow}>EXPLORE BY CATEGORY</Text>
+          <Text style={styles.collectionsHeading}>Silver Collections</Text>
 
           <TouchableOpacity
-            style={styles.storyBtn}
-            onPress={() => navigation.navigate('Wholesale')}
-            activeOpacity={0.85}
+            style={styles.viewCategoriesBtn}
+            onPress={() => navigation.navigate('Categories')}
+            activeOpacity={0.8}
           >
-            <Text style={styles.storyBtnText}>OUR STORY →</Text>
+            <Text style={styles.viewCategoriesText}>VIEW CATEGORIES</Text>
+            <ArrowRight size={15} color="#B5985B" strokeWidth={2.2} />
           </TouchableOpacity>
-        </View>
 
-        {/* 06. CRAFTSMANSHIP WORKFLOW */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionEyebrow}>FROM CRAFT TO CREATION</Text>
-            <Text style={styles.sectionTitle}>Atelier Process</Text>
-          </View>
-
-          <View style={styles.processList}>
-            {manufacturingSteps.map((step, idx) => (
-              <View key={idx} style={styles.processCard}>
-                <Text style={styles.processNum}>{step.num}</Text>
-                <View style={styles.processContent}>
-                  <Text style={styles.processName}>{step.name}</Text>
-                  <Text style={styles.processDesc}>{step.desc}</Text>
+          <View style={styles.collectionsGrid}>
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={styles.collectionCard}
+                onPress={() => navigation.navigate('Categories', { categorySlug: cat.slug })}
+                activeOpacity={0.9}
+              >
+                {/* Top Image Frame Container */}
+                <View style={styles.colImageFrame}>
+                  {Boolean(cat.image_url) ? (
+                    <Image
+                      source={{ uri: getFullImageUrl(cat.image_url) }}
+                      style={styles.colImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.placeholderFrame}>
+                      <Text style={styles.placeholderText} numberOfLines={1}>
+                        {cat.name}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-              </View>
+
+                {/* Bottom Details Container */}
+                <View style={styles.colDetails}>
+                  <Text style={styles.colSubCount}>{cat.subcategories_count} SUBCATEGORIES</Text>
+                  <Text style={styles.colName}>{cat.name}</Text>
+                  <Text style={styles.colDesc}>{cat.description}</Text>
+                  <View style={styles.colCtaLink}>
+                    <Text style={styles.colCtaText}>EXPLORE COLLECTION →</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* 07. ATELIER VIDEO BANNER */}
-        <View style={styles.videoBanner}>
-          <Image
-            source={{
-              uri: 'https://images.unsplash.com/photo-1616038242814-a6eac7f46688?auto=format&fit=crop&w=800&q=80',
-            }}
-            style={styles.videoBgImage}
-            resizeMode="cover"
-          />
-          <View style={styles.videoOverlay}>
-            <Text style={styles.videoEyebrow}>INSIDE THE ATELIER</Text>
-            <Text style={styles.videoHeading}>See how silver becomes timeless.</Text>
-
-            <TouchableOpacity
-              style={styles.playCircle}
-              onPress={() => setIsVideoModalOpen(true)}
-              activeOpacity={0.85}
-            >
-              <Play color="#111111" fill="#111111" size={18} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 08. WHOLESALE B2B */}
-        <View style={styles.b2bContainer}>
-          <Text style={styles.b2bEyebrow}>WHOLESALE & B2B</Text>
-          <Text style={styles.b2bTitle}>
-            Wholesale Silver,{'\n'}Direct From Our Atelier.
+        {/* B2B / WHOLESALE SECTION — EXACT MATCH FOR USER IMAGE */}
+        <View style={styles.wholesaleSection}>
+          <Text style={styles.wholesaleEyebrow}>
+            INDIVIDUAL • CUSTOM • WHOLESALE
+          </Text>
+          <Text style={styles.wholesaleHeading}>
+            From individual bespoke pieces to large-scale B2B wholesale requirements.
+          </Text>
+          <Text style={styles.wholesaleBody}>
+            Supplying leading South Indian jewellery showrooms, temples, and corporate institutions with customized silver minting, 999 bullion bars, and bulk retail stock with ReportLab PDF quotation support.
           </Text>
 
-          <View style={styles.b2bPoints}>
-            <Text style={styles.b2bPointText}>• Manufacturer pricing</Text>
-            <Text style={styles.b2bPointText}>• Bulk orders</Text>
-            <Text style={styles.b2bPointText}>• Custom requirements</Text>
-            <Text style={styles.b2bPointText}>• B2B support</Text>
-          </View>
-
           <TouchableOpacity
-            style={styles.b2bBtn}
+            style={styles.wholesaleBtn}
             onPress={() => navigation.navigate('Wholesale')}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
-            <Text style={styles.b2bBtnText}>EXPLORE WHOLESALE →</Text>
+            <Text style={styles.wholesaleBtnText}>ENQUIRE FOR WHOLESALE</Text>
+            <Briefcase size={16} color="#B5985B" strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
-        {/* 09. FINAL HOME CTA */}
-        <View style={styles.finalCtaContainer}>
-          <Text style={styles.finalCtaTitle}>Find something timeless.</Text>
-          <Text style={styles.finalCtaDesc}>
-            Explore our silver collections or speak with our team.
-          </Text>
+        {/* UNCOMPROMISING STANDARDS SECTION */}
+        <View style={styles.standardsSection}>
+          <Text style={styles.standardsEyebrow}>UNCOMPROMISING STANDARDS</Text>
+          <Text style={styles.standardsHeading}>Why Sai Balaji Silverworks</Text>
 
-          <View style={styles.finalBtnRow}>
-            <TouchableOpacity
-              style={styles.finalPrimaryBtn}
-              onPress={() => navigation.navigate('Categories')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.finalPrimaryBtnText}>EXPLORE COLLECTIONS</Text>
-            </TouchableOpacity>
+          <View style={styles.standardsCardsContainer}>
+            {/* CARD 1: 100% AUTHENTIC SILVER */}
+            <View style={styles.standardCard}>
+              <Award size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
+              <Text style={styles.standardCardTitle}>100% Authentic Silver</Text>
+              <Text style={styles.standardCardBody}>
+                NABL spectrometry assayed 999 fine silver and 925 sterling formulations.
+              </Text>
+            </View>
 
-            <TouchableOpacity
-              style={styles.finalSecondaryBtn}
-              onPress={() => navigation.navigate('Wholesale')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.finalSecondaryBtnText}>CONTACT US</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
+            {/* CARD 2: MASTER CRAFTSMANSHIP */}
+            <View style={styles.standardCard}>
+              <ShieldCheck size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
+              <Text style={styles.standardCardTitle}>Master Craftsmanship</Text>
+              <Text style={styles.standardCardBody}>
+                Ancestral South Indian temple idol sculpting & Nakshi relief carving.
+              </Text>
+            </View>
 
-      {/* DOCUMENTARY VIDEO MODAL */}
-      <Modal
-        visible={isVideoModalOpen}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setIsVideoModalOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={() => setIsVideoModalOpen(false)}
-            >
-              <X color="#FFFFFF" size={20} />
-            </TouchableOpacity>
+            {/* CARD 3: ANTI-TARANISH COATING */}
+            <View style={styles.standardCard}>
+              <Sparkles size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
+              <Text style={styles.standardCardTitle}>Anti-Tarnish Coating</Text>
+              <Text style={styles.standardCardBody}>
+                Nano protective barrier preserves mirror-bright specular shine for years.
+              </Text>
+            </View>
 
-            <Text style={styles.modalEyebrow}>SAI BALAJI ATELIER</Text>
-            <Text style={styles.modalTitle}>See how silver becomes timeless.</Text>
-            <Text style={styles.modalDesc}>
-              Discover 25+ years of South Indian silver craftsmanship from our direct atelier in Tenali.
-            </Text>
-
-            <View style={styles.modalVideoFrame}>
-              <Play color="#FFFFFF" size={32} fill="#FFFFFF" />
-              <Text style={styles.modalVideoText}>Playing Atelier Story...</Text>
+            {/* CARD 4: INSURED SAFE SHIPPING */}
+            <View style={styles.standardCard}>
+              <Truck size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
+              <Text style={styles.standardCardTitle}>Insured Safe Shipping</Text>
+              <Text style={styles.standardCardBody}>
+                Tamper-evident luxury packaging and insured dispatch across India.
+              </Text>
             </View>
           </View>
         </View>
-      </Modal>
+
+        {/* CRAFTED TO LAST BANNER SECTION — EXACT MATCH FOR USER IMAGE */}
+        <View style={styles.craftedBannerSection}>
+          <Text style={styles.craftedEyebrow}>CRAFTED TO LAST • CREATED IN SILVER</Text>
+          <Text style={styles.craftedHeadingMain}>Discover Pure Silver</Text>
+          <Text style={styles.craftedHeadingItalic}>Crafted for Generations.</Text>
+
+          <Text style={styles.craftedBody}>
+            Browse our hallmarked deity idols, dining tableware, pooja thalis, and custom minting options.
+          </Text>
+
+          <View style={styles.craftedBtnRow}>
+            <TouchableOpacity
+              style={styles.craftedExploreBtn}
+              onPress={() => navigation.navigate('Categories')}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.craftedExploreBtnText}>EXPLORE COLLECTIONS →</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.craftedContactBtn}
+              onPress={() => navigation.navigate('Contact')}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.craftedContactBtnText}>CONTACT US →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+      </ScrollView>
     </View>
   );
 };
@@ -428,462 +369,658 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF9F6',
+    backgroundColor: '#FAF8F5',
+  },
+  scrollContent: {
+    paddingHorizontal: 22,
+    paddingTop: 32,
+    alignItems: 'center',
   },
   heroContainer: {
-    height: 380,
-    position: 'relative',
-    backgroundColor: '#111111',
-  },
-  heroImage: {
     width: '100%',
-    height: '100%',
-    opacity: 0.55,
-  },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(17, 17, 17, 0.45)',
-    paddingHorizontal: 20,
-    justifyContent: 'flex-end',
-    paddingBottom: 28,
-  },
-  heroContent: {
-    gap: 4,
-  },
-  heroEyebrow: {
-    color: '#C5A059',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 2.5,
-    marginBottom: 4,
-  },
-  heroHeadline: {
-    color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '300',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    lineHeight: 36,
-    marginBottom: 8,
-  },
-  heroHeadlineItalic: {
-    fontStyle: 'italic',
-    color: '#E5E5E0',
-  },
-  heroDesc: {
-    color: '#D0CECA',
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 16,
-    maxWidth: 300,
-  },
-  heroCtaRow: {
-    flexDirection: 'row',
-    gap: 10,
     alignItems: 'center',
   },
-  heroPrimaryBtn: {
+  eyebrowPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 11,
-    paddingHorizontal: 16,
-    borderRadius: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  heroPrimaryBtnText: {
-    color: '#111111',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-  },
-  heroSecondaryBtn: {
-    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    paddingVertical: 11,
+    borderColor: '#E6E1D8',
     paddingHorizontal: 16,
-    borderRadius: 4,
+    paddingVertical: 7,
+    borderRadius: 20,
+    marginBottom: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  heroSecondaryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10,
+  eyebrowDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#B5985B',
+    marginRight: 8,
+  },
+  eyebrowPillText: {
+    fontSize: 10.5,
     fontWeight: '700',
-    letterSpacing: 1.2,
+    color: '#78726A',
+    letterSpacing: 2.2,
   },
-  trustStrip: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8E7E2',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+  brandSubHeader: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  titleLockup: {
     alignItems: 'center',
-    justifyContent: 'space-around',
+    marginBottom: 22,
   },
-  trustItem: {
-    alignItems: 'center',
-    flex: 1,
+  heroTitleMain: {
+    fontSize: 44,
+    fontWeight: '400',
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    lineHeight: 52,
+    textAlign: 'center',
+    letterSpacing: -0.5,
   },
-  trustNumber: {
-    color: '#111111',
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  heroTitleNavy: {
+    fontSize: 44,
+    fontWeight: '400',
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#121767',
+    lineHeight: 52,
+    textAlign: 'center',
+    letterSpacing: -0.5,
   },
-  trustLabel: {
-    color: '#898985',
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginTop: 2,
+  heroSubtitle: {
+    fontSize: 14,
+    color: '#6B665E',
+    lineHeight: 23,
+    textAlign: 'center',
+    marginBottom: 30,
+    paddingHorizontal: 12,
   },
-  trustDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: '#E5E5E0',
-  },
-  sectionContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  sectionHeader: {
-    marginBottom: 14,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 14,
-  },
-  sectionEyebrow: {
-    color: '#898985',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginBottom: 3,
-  },
-  sectionTitle: {
-    color: '#111111',
-    fontSize: 20,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
-  viewAllText: {
-    color: '#111111',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  collectionsGrid: {
+  certRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 36,
+    gap: 6,
   },
-  collectionCard: {
-    width: (width - 42) / 2,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E8E7E2',
-    overflow: 'hidden',
+  certBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
-  collectionImgWrapper: {
+  certText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#5C574F',
+    letterSpacing: 1.5,
+  },
+  certDot: {
+    marginHorizontal: 4,
+    color: '#D6CEC3',
+    fontSize: 12,
+  },
+  exploreBtn: {
+    backgroundColor: '#1C1D1F',
     width: '100%',
-    height: 120,
-    backgroundColor: '#F7F6F2',
+    height: 52,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  collectionImg: {
+  exploreBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
+    letterSpacing: 2.2,
+  },
+  shopSilverBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E6E1D8',
+    width: '100%',
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  shopSilverBtnText: {
+    color: '#202020',
+    fontSize: 12.5,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  showcaseFrame: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E6E1D8',
+    padding: 12,
+    marginTop: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  innerShowcaseCard: {
+    width: '100%',
+    height: 400,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#000000',
+  },
+  showcaseImage: {
     width: '100%',
     height: '100%',
   },
-  collectionDetails: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+  floatingBadge: {
+    position: 'absolute',
+    bottom: 16,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
+    borderColor: '#E5E0D8',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  collectionName: {
-    flex: 1,
-    color: '#111111',
-    fontSize: 12,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  floatingBadgeText: {
+    fontSize: 13.5,
+    fontFamily: Platform.OS === 'ios' ? 'Bodoni 72' : 'serif',
+    fontStyle: 'italic',
+    color: '#202020',
   },
-  productCarousel: {
-    paddingRight: 16,
-  },
-  atelierSection: {
+  // BRAND STORY SECTION STYLING
+  brandStorySection: {
+    width: '100%',
     backgroundColor: '#FFFFFF',
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
+    paddingHorizontal: 24,
+    paddingVertical: 44,
+    marginTop: 32,
+    alignItems: 'center',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#E8E7E2',
+    borderColor: '#EAE6DF',
   },
-  atelierHeading: {
-    color: '#111111',
-    fontSize: 22,
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    lineHeight: 28,
-    marginTop: 4,
-    marginBottom: 10,
-  },
-  atelierDesc: {
-    color: '#555555',
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 16,
-  },
-  atelierImageFrame: {
-    width: '100%',
-    height: 180,
-    borderRadius: 6,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  atelierImage: {
-    width: '100%',
-    height: '100%',
-  },
-  storyBtn: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#111111',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 4,
-  },
-  storyBtnText: {
-    color: '#111111',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  processList: {
-    gap: 10,
-  },
-  processCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    padding: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E8E7E2',
-    alignItems: 'center',
-    gap: 12,
-  },
-  processNum: {
-    color: '#898985',
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    width: 24,
-  },
-  processContent: {
-    flex: 1,
-  },
-  processName: {
-    color: '#111111',
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
-  processDesc: {
-    color: '#666666',
+  brandStoryEyebrow: {
     fontSize: 11,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  videoBanner: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    height: 190,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#111111',
-  },
-  videoBgImage: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.6,
-  },
-  videoOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(17, 17, 17, 0.4)',
-    padding: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoEyebrow: {
-    color: '#C5A059',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  videoHeading: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 16,
     textAlign: 'center',
-    marginBottom: 14,
   },
-  playCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+  brandStoryHeading: {
+    fontSize: 26,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    lineHeight: 36,
+    marginBottom: 20,
+    letterSpacing: 0.2,
+  },
+  brandStoryBody: {
+    fontSize: 14,
+    color: '#555555',
+    lineHeight: 24,
+    textAlign: 'center',
+    maxWidth: 550,
+  },
+  brandStoryDivider: {
+    width: 60,
+    height: 1.5,
+    backgroundColor: '#B5985B',
+    marginTop: 32,
+  },
+  // PURITY SECTION STYLING
+  puritySection: {
+    width: '100%',
+    backgroundColor: '#FAF8F5',
+    paddingHorizontal: 22,
+    paddingVertical: 44,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  b2bContainer: {
-    backgroundColor: '#111111',
-    marginHorizontal: 16,
-    marginTop: 24,
-    padding: 22,
-    borderRadius: 8,
-  },
-  b2bEyebrow: {
-    color: '#C5A059',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  b2bTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    lineHeight: 26,
-    marginBottom: 14,
-  },
-  b2bPoints: {
-    gap: 6,
-    marginBottom: 18,
-  },
-  b2bPointText: {
-    color: '#D0CECA',
-    fontSize: 12,
+  purityEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 10,
+    textAlign: 'center',
     lineHeight: 18,
   },
-  b2bBtn: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  b2bBtnText: {
-    color: '#111111',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  finalCtaContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    alignItems: 'center',
-  },
-  finalCtaTitle: {
-    color: '#111111',
-    fontSize: 22,
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  purityHeading: {
+    fontSize: 28,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
     textAlign: 'center',
+    marginBottom: 28,
+  },
+  purityCardsRow: {
+    width: '100%',
+    gap: 16,
+  },
+  purityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E6E1D8',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  purityNumber: {
+    fontSize: 46,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
     marginBottom: 6,
   },
-  finalCtaDesc: {
-    color: '#666666',
-    fontSize: 12,
+  purityTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 2.5,
+    marginBottom: 14,
     textAlign: 'center',
-    marginBottom: 18,
   },
-  finalBtnRow: {
-    flexDirection: 'row',
-    gap: 10,
+  purityDesc: {
+    fontSize: 13.5,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 21,
   },
-  finalPrimaryBtn: {
-    backgroundColor: '#111111',
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    borderRadius: 4,
-  },
-  finalPrimaryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  finalSecondaryBtn: {
-    borderWidth: 1,
-    borderColor: '#111111',
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    borderRadius: 4,
-  },
-  finalSecondaryBtnText: {
-    color: '#111111',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalCard: {
+  // COLLECTIONS SECTION STYLING
+  collectionsSection: {
     width: '100%',
-    backgroundColor: '#111111',
-    padding: 24,
-    borderRadius: 8,
-    position: 'relative',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingVertical: 44,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#EAE6DF',
   },
-  modalCloseBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    zIndex: 10,
+  collectionsEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 8,
+    textAlign: 'center',
   },
-  modalEyebrow: {
-    color: '#C5A059',
-    fontSize: 9,
-    fontWeight: '800',
+  collectionsHeading: {
+    fontSize: 30,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  viewCategoriesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 32,
+  },
+  viewCategoriesText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#202020',
+    letterSpacing: 2.5,
+  },
+  collectionsGrid: {
+    width: '100%',
+    gap: 20,
+  },
+  collectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E6E1D8',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  colImageFrame: {
+    width: '100%',
+    height: 220,
+    backgroundColor: '#000000',
+  },
+  colImage: {
+    width: '100%',
+    height: '100%',
+  },
+  colDetails: {
+    paddingHorizontal: 22,
+    paddingVertical: 22,
+    backgroundColor: '#FFFFFF',
+  },
+  colSubCount: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#B5985B',
     letterSpacing: 2,
     marginBottom: 6,
   },
-  modalTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '400',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  colName: {
+    fontSize: 24,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
     marginBottom: 8,
   },
-  modalDesc: {
-    color: '#898985',
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 18,
+  colDesc: {
+    fontSize: 13.5,
+    color: '#555555',
+    lineHeight: 20,
+    marginBottom: 16,
   },
-  modalVideoFrame: {
-    height: 140,
-    backgroundColor: '#222222',
-    borderRadius: 6,
+  colCtaLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  colCtaText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#1C1D1F',
+    letterSpacing: 1.8,
+  },
+  placeholderFrame: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    paddingLeft: 16,
+  },
+  placeholderText: {
+    color: 'rgba(255, 255, 255, 0.12)',
+    fontSize: 15,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+  },
+  // WHOLESALE SECTION STYLING
+  wholesaleSection: {
+    width: '100%',
+    backgroundColor: '#FAF8F5',
+    paddingHorizontal: 22,
+    paddingVertical: 48,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#EAE6DF',
+  },
+  wholesaleEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  wholesaleHeading: {
+    fontSize: 28,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    lineHeight: 38,
+    marginBottom: 20,
+  },
+  wholesaleBody: {
+    fontSize: 14,
+    color: '#555555',
+    lineHeight: 23,
+    textAlign: 'center',
+    maxWidth: 550,
+    marginBottom: 30,
+    paddingHorizontal: 8,
+  },
+  wholesaleBtn: {
+    backgroundColor: '#1C1D1F',
+    height: 52,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  modalVideoText: {
+  wholesaleBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 2.2,
+  },
+  // UNCOMPROMISING STANDARDS SECTION STYLING
+  standardsSection: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingVertical: 44,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderColor: '#EAE6DF',
+  },
+  standardsEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  standardsHeading: {
+    fontSize: 28,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  standardsCardsContainer: {
+    width: '100%',
+    gap: 16,
+  },
+  standardCard: {
+    backgroundColor: '#FAF7F2',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EAE4D9',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  standardCardTitle: {
+    fontSize: 20,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  standardCardBody: {
+    fontSize: 13.5,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+  // CRAFTED TO LAST BANNER SECTION STYLING
+  craftedBannerSection: {
+    width: '100%',
+    backgroundColor: '#FAF8F5',
+    paddingHorizontal: 24,
+    paddingVertical: 52,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderColor: '#EAE6DF',
+  },
+  craftedEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  craftedHeadingMain: {
+    fontSize: 36,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    lineHeight: 44,
+  },
+  craftedHeadingItalic: {
+    fontSize: 38,
+    fontFamily: Platform.OS === 'ios' ? 'Bodoni 72' : 'serif',
+    fontStyle: 'italic',
+    color: '#B5985B',
+    textAlign: 'center',
+    lineHeight: 46,
+    marginBottom: 20,
+  },
+  craftedBody: {
+    fontSize: 13.5,
+    color: '#666666',
+    lineHeight: 22,
+    textAlign: 'center',
+    maxWidth: 500,
+    marginBottom: 32,
+    paddingHorizontal: 8,
+  },
+  craftedBtnRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  craftedExploreBtn: {
+    backgroundColor: '#1C1D1F',
+    height: 48,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  craftedExploreBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  craftedContactBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E6E1D8',
+    height: 48,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  craftedContactBtnText: {
+    color: '#202020',
+    fontSize: 11.5,
+    fontWeight: '700',
+    letterSpacing: 2,
   },
 });

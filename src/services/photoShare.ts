@@ -59,7 +59,7 @@ export const downloadProductPhoto = async (imageUrl: string, title?: string): Pr
   try {
     if (!imageUrl) return null;
     const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || '';
-    const localUri = `${cacheDir}product_${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
+    const localUri = `${cacheDir}product_${Date.now()}_${Math.floor(Math.random() * 1000)}.webp`;
 
     const downloadRes = await FileSystem.downloadAsync(imageUrl, localUri);
     return downloadRes.uri;
@@ -90,7 +90,7 @@ export const downloadAndSharePhoto = async (
         await Sharing.shareAsync(localUri, {
           mimeType: 'image/jpeg',
           dialogTitle: `Share ${title} Photo to WhatsApp`,
-          UTI: 'public.jpeg',
+          UTI: 'public.webp',
         });
         return;
       }

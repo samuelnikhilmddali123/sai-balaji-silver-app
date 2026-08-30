@@ -2,7 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Platform, Image, Text, TouchableOpacity } from 'react-native';
-import { Home, LayoutGrid, Briefcase, User, Search, ShoppingBag } from 'lucide-react-native';
+import { Home, LayoutGrid, Briefcase, User, Search, ShoppingBag, Menu } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,79 +12,139 @@ import { ProductDetailScreen } from '../screens/ProductDetailScreen';
 import { WholesaleScreen } from '../screens/WholesaleScreen';
 import { CartScreen } from '../screens/CartScreen';
 import { AccountScreen } from '../screens/AccountScreen';
+import { AboutScreen } from '../screens/AboutScreen';
+import { ContactScreen } from '../screens/ContactScreen';
 import { FloatingCartBar } from '../components/FloatingCartBar';
+import { NavigationMenuModal } from '../components/NavigationMenuModal';
+import { GlobalAddressModal } from '../components/GlobalAddressModal';
+import { SearchModal } from '../components/SearchModal';
 import { useCart } from '../context/CartContext';
+import { useMenu } from '../context/MenuContext';
+import { SearchProvider, useSearchModal } from '../context/SearchContext';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const HeaderLogoTitle: React.FC<{ title?: string }> = ({ title = 'Sai Balaji Silverworks' }) => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-    <Image
-      source={require('../../assets/logo.png')}
-      style={{ width: 26, height: 26, borderRadius: 13 }}
-      resizeMode="contain"
-    />
-    <Text
-      style={{
-        color: '#111111',
-        fontSize: 16,
-        fontWeight: '700',
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        letterSpacing: 0.3,
-      }}
-      numberOfLines={1}
-    >
-      {title}
-    </Text>
-  </View>
-);
+const HeaderLeftMenu: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const { openMenu } = useMenu();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 16, gap: 12 }}>
+      <TouchableOpacity
+        onPress={openMenu}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        activeOpacity={0.7}
+      >
+        <Menu color="#202020" size={22} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Home')}
+        activeOpacity={0.88}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: '#E5E0D8',
+            backgroundColor: '#FFFFFF',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 2,
+          }}
+        >
+          <Image
+            source={require('../../assets/logo.webp')}
+            style={{ width: 30, height: 30, borderRadius: 15 }}
+            resizeMode="contain"
+          />
+        </View>
+        <View>
+          <Text style={{ fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', color: '#202020', letterSpacing: 2, fontWeight: '500' }}>
+            SAI BALAJI
+          </Text>
+          <Text style={{ fontSize: 8.5, color: '#666666', letterSpacing: 2, fontWeight: '600' }}>
+            SILVERWORKS
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const HeaderRightIcons: React.FC = () => {
   const navigation = useNavigation<any>();
   const { totalItemsCount } = useCart();
+  const { openSearch } = useSearchModal();
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginRight: 16 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 14 }}>
       <TouchableOpacity
-        onPress={() => navigation.navigate('Categories')}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        onPress={openSearch}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         activeOpacity={0.7}
       >
-        <Search color="#111111" size={20} />
+        <Search color="#202020" size={20} />
       </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Account')}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.7}
+      >
+        <User color="#202020" size={20} />
+      </TouchableOpacity>
+
       <TouchableOpacity
         onPress={() => navigation.navigate('Cart')}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        activeOpacity={0.7}
-        style={{ position: 'relative' }}
+        activeOpacity={0.88}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          backgroundColor: '#1A1918',
+          paddingHorizontal: 12,
+          paddingVertical: 7,
+          borderRadius: 20,
+        }}
       >
-        <ShoppingBag color="#111111" size={20} />
-        {totalItemsCount > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              top: -4,
-              right: -6,
-              backgroundColor: '#111111',
-              minWidth: 16,
-              height: 16,
-              borderRadius: 8,
-              alignItems: 'center',
-              justifyContent: 'center',
-              paddingHorizontal: 3,
-              borderWidth: 1.5,
-              borderColor: '#FFFFFF',
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 8, fontWeight: '800' }}>
-              {totalItemsCount}
-            </Text>
-          </View>
-        )}
+        <ShoppingBag color="#FFFFFF" size={13} />
+        <Text
+          style={{
+            color: '#FFFFFF',
+            fontSize: 11,
+            fontWeight: '700',
+            letterSpacing: 0.5,
+          }}
+        >
+          CART ({totalItemsCount})
+        </Text>
       </TouchableOpacity>
     </View>
   );
+};
+
+const commonHeaderOptions = {
+  headerShown: true,
+  headerStyle: {
+    backgroundColor: '#FAF8F5',
+    elevation: 0,
+    shadowOpacity: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAE6DF',
+  },
+  headerTitleAlign: 'center' as const,
+  headerLeft: () => <HeaderLeftMenu />,
+  headerTitle: () => null,
+  headerRight: () => <HeaderRightIcons />,
+  headerTintColor: '#111111',
 };
 
 const TabNavigator = () => {
@@ -94,17 +154,7 @@ const TabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-          elevation: 0,
-          shadowOpacity: 0,
-          borderBottomWidth: 1,
-          borderBottomColor: '#F0EFEA',
-          height: Platform.OS === 'ios' ? 44 + insets.top : 56,
-        },
-        headerTitleAlign: 'left',
-        headerRight: () => <HeaderRightIcons />,
-        headerTintColor: '#111111',
+        ...commonHeaderOptions,
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           height: 56 + bottomInset,
@@ -132,7 +182,6 @@ const TabNavigator = () => {
         name="Home"
         component={HomeScreen}
         options={{
-          headerTitle: () => <HeaderLogoTitle title="Sai Balaji Silverworks" />,
           tabBarLabel: 'Home',
           tabBarIcon: ({ color, size }) => <Home color={color} size={20} />,
         }}
@@ -141,8 +190,7 @@ const TabNavigator = () => {
         name="Categories"
         component={CategoriesScreen}
         options={{
-          headerTitle: () => <HeaderLogoTitle title="Silver Collections" />,
-          tabBarLabel: 'Categories',
+          tabBarLabel: 'Retail',
           tabBarIcon: ({ color, size }) => <LayoutGrid color={color} size={20} />,
         }}
       />
@@ -150,7 +198,6 @@ const TabNavigator = () => {
         name="Wholesale"
         component={WholesaleScreen}
         options={{
-          headerTitle: () => <HeaderLogoTitle title="B2B Wholesale" />,
           tabBarLabel: 'Wholesale',
           tabBarIcon: ({ color, size }) => <Briefcase color={color} size={20} />,
         }}
@@ -159,7 +206,6 @@ const TabNavigator = () => {
         name="Account"
         component={AccountScreen}
         options={{
-          headerTitle: () => <HeaderLogoTitle title="Account" />,
           tabBarLabel: 'Account',
           tabBarIcon: ({ color, size }) => <User color={color} size={20} />,
         }}
@@ -170,36 +216,55 @@ const TabNavigator = () => {
 
 export const RootNavigator = () => {
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="MainTabs" component={TabNavigator} />
-        <Stack.Screen
-          name="ProductDetail"
-          component={ProductDetailScreen}
-          options={{
+    <SearchProvider>
+      <View style={{ flex: 1 }}>
+        <Stack.Navigator
+          screenOptions={{
             headerShown: false,
+            contentStyle: { backgroundColor: '#FAF8F5' },
           }}
-        />
-        <Stack.Screen
-          name="Cart"
-          component={CartScreen}
-          options={{
-            headerShown: true,
-            headerTitle: () => <HeaderLogoTitle title="Shopping Cart" />,
-            headerStyle: {
-              backgroundColor: '#FFFFFF',
-            },
-            headerTintColor: '#2D6A68',
-          }}
-        />
-      </Stack.Navigator>
+        >
+          <Stack.Screen
+            name="MainTabs"
+            component={TabNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ProductDetail"
+            component={ProductDetailScreen}
+            options={commonHeaderOptions}
+          />
+          <Stack.Screen
+            name="Cart"
+            component={CartScreen}
+            options={commonHeaderOptions}
+          />
+          <Stack.Screen
+            name="About"
+            component={AboutScreen}
+            options={commonHeaderOptions}
+          />
+          <Stack.Screen
+            name="Contact"
+            component={ContactScreen}
+            options={commonHeaderOptions}
+          />
+        </Stack.Navigator>
 
-      {/* Floating Quick Cart Bar overlay */}
-      <FloatingCartBar />
-    </View>
+        {/* Floating Quick Cart Bar overlay */}
+        <FloatingCartBar />
+
+        {/* Full-screen Navigation Menu Modal */}
+        <NavigationMenuModal />
+
+        {/* Global Profile & Delivery Setup Address Modal */}
+        <GlobalAddressModal />
+
+        {/* Global Search Modal matching website Image 4 */}
+        <SearchModal />
+      </View>
+    </SearchProvider>
   );
 };
+
+export default RootNavigator;

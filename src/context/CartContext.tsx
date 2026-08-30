@@ -101,30 +101,45 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Actions
   const addToCart = (product: Product, quantity = 1) => {
-    const existingIndex = cart.findIndex((i) => i.product.id === product.id);
+    const variantKey = product.selected_variant?.size || product.selected_variant?.label || '';
+    const existingIndex = cart.findIndex(
+      (i) =>
+        i.product.id === product.id &&
+        (i.product.selected_variant?.size || i.product.selected_variant?.label || '') === variantKey
+    );
     let updated: CartItem[];
     if (existingIndex > -1) {
       updated = [...cart];
       updated[existingIndex].quantity += quantity;
     } else {
-      updated = [...cart, { product, quantity }];
+      updated = [...cart, { product: { ...product }, quantity }];
     }
     saveCart(updated);
   };
 
-  const removeFromCart = (productId: number) => {
-    const updated = cart.filter((i) => i.product.id !== productId);
+  const removeFromCart = (productId: number, variantSize?: string) => {
+    const updated = cart.filter((i) => {
+      if (i.product.id !== productId) return true;
+      if (variantSize !== undefined) {
+        return (i.product.selected_variant?.size || i.product.selected_variant?.label || '') !== variantSize;
+      }
+      return false;
+    });
     saveCart(updated);
   };
 
-  const updateQuantity = (productId: number, quantity: number) => {
+  const updateQuantity = (productId: number, quantity: number, variantSize?: string) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, variantSize);
       return;
     }
-    const updated = cart.map((i) =>
-      i.product.id === productId ? { ...i, quantity } : i
-    );
+    const updated = cart.map((i) => {
+      const isMatch =
+        i.product.id === productId &&
+        (variantSize === undefined ||
+          (i.product.selected_variant?.size || i.product.selected_variant?.label || '') === variantSize);
+      return isMatch ? { ...i, quantity } : i;
+    });
     saveCart(updated);
   };
 

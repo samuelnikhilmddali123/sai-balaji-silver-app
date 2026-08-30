@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,38 +7,143 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
-  Linking,
+  Modal,
   Alert,
   Platform,
+  Linking,
+  Share,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { ShoppingBag, Heart, ShieldCheck, CheckCircle2, MessageCircle, ArrowLeft, Download } from 'lucide-react-native';
+import {
+  Heart,
+  Share2,
+  ShieldCheck,
+  Check,
+  Sparkles,
+  Truck,
+  Factory,
+  Copy,
+  MessageCircle,
+  Facebook,
+  Instagram,
+  X,
+  ChevronRight,
+  ShoppingBag,
+  ArrowLeft,
+  Info,
+  RefreshCw,
+} from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { Product } from '../types';
-import { getFullImageUrl } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { Product, ProductVariant } from '../types';
+import { catalogApi, silverRateApi, getFullImageUrl } from '../services/api';
 import { downloadAndSharePhoto, openWhatsAppDirect } from '../services/photoShare';
 
 const { width } = Dimensions.get('window');
+
+export interface MeasurementVariant {
+  id: string;
+  name: string;
+  weight_g: number;
+  height_in?: number | string;
+  diameter_in?: number | string;
+  making_charge?: number;
+  making_type?: 'fixed' | 'per_gram' | 'percentage';
+  making_value?: number;
+  sku_suffix?: string;
+}
+
+// Default fallback measurement size variants matching luxury silver standards
+const DEFAULT_MEASUREMENT_VARIANTS: MeasurementVariant[] = [
+  { id: '2in', name: '2 inch', weight_g: 250, height_in: '3.5', diameter_in: '4.5', making_charge: 6250, sku_suffix: '-2IN' },
+  { id: '3in', name: '3 inch', weight_g: 400, height_in: '4.2', diameter_in: '5.8', making_charge: 9800, sku_suffix: '-3IN' },
+  { id: '4in', name: '4 inch', weight_g: 625, height_in: '5.5', diameter_in: '7.2', making_charge: 14800, sku_suffix: '-4IN' },
+  { id: '6in', name: '6 inch', weight_g: 1000, height_in: '7.0', diameter_in: '9.5', making_charge: 23500, sku_suffix: '-6IN' },
+  { id: '8in', name: '8 inch', weight_g: 1500, height_in: '9.2', diameter_in: '12.0', making_charge: 34500, sku_suffix: '-8IN' },
+];
 
 export const ProductDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const product: Product = route.params?.product;
+  const initialProduct: Product = route.params?.product;
 
-  const { addToCart } = useCart();
+  const [product, setProduct] = useState<Product>(initialProduct);
+  const { cart, addToCart, updateQuantity } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
-  
-  const [quantity, setQuantity] = useState<number>(1);
+
+  // Live Silver Rate State
+  const [liveSilverRate, setLiveSilverRate] = useState<number>(244.4); // ₹/g
+  const [isLiveRateLoading, setIsLiveRateLoading] = useState<boolean>(false);
+
+  // Active Gallery Image
   const [selectedImg, setSelectedImg] = useState<string>(
-    product?.featured_image || product?.images?.[0] || ''
+    initialProduct?.featured_image || initialProduct?.images?.[0] || ''
   );
+
+  // Selected Measurement Variant
+  const [activeVariant, setActiveVariant] = useState<MeasurementVariant>(DEFAULT_MEASUREMENT_VARIANTS[0]);
+
+  // Active Bottom Tab State
+  const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'purity' | 'care'>('desc');
+
+  // Share Modal State
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [copySuccessText, setCopySuccessText] = useState<boolean>(false);
+
+  // Temporary Success state for Add To Bag button
+  const [addSuccess, setAddSuccess] = useState<boolean>(false);
+
+  // Fetch product detail and live silver rate from backend
+  useEffect(() => {
+    // 1. Fetch Live Silver Rate
+    setIsLiveRateLoading(true);
+    silverRateApi
+      .getLiveRate()
+      .then((res) => {
+        if (res && res.data) {
+          const rateVal = res.data.rate_per_gram || res.data.silver_rate || res.data.rate;
+          if (rateVal) setLiveSilverRate(Number(rateVal));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLiveRateLoading(false));
+
+    // Subscribe to SSE stream
+    const unsubscribeStream = silverRateApi.subscribeStream((data) => {
+      const rateVal = data?.rate_per_gram || data?.silver_rate || data?.rate;
+      if (rateVal) setLiveSilverRate(Number(rateVal));
+    });
+
+    // 2. Fetch full product details
+    const prodIdOrSlug = initialProduct?.id || initialProduct?.slug || route.params?.idOrSlug;
+    if (prodIdOrSlug) {
+      catalogApi
+        .getProductDetail(prodIdOrSlug)
+        .then((res) => {
+          if (res && res.data) {
+            const fetched: Product = res.data.product || res.data;
+            setProduct((prev) => ({ ...prev, ...fetched }));
+            if (fetched.featured_image || (fetched.images && fetched.images.length > 0)) {
+              setSelectedImg(fetched.featured_image || (fetched.images ? fetched.images[0] : ''));
+            }
+          }
+        })
+        .catch((err) => {
+          console.log('Error fetching product detail:', err);
+        });
+    }
+
+    return () => {
+      if (unsubscribeStream) unsubscribeStream();
+    };
+  }, [initialProduct]);
 
   if (!product) {
     return (
-      <View style={styles.notFound}>
+      <View style={styles.notFoundContainer}>
         <Text style={styles.notFoundText}>Product not found.</Text>
       </View>
     );
@@ -46,32 +151,105 @@ export const ProductDetailScreen: React.FC = () => {
 
   const inWishlist = isInWishlist(product.id);
 
+  // Purity Factor (0.925 for 925 Sterling Silver, 1.0 for 999 Fine Silver)
+  const isFineSilver999 = product.silver_purity?.includes('999') || product.title?.includes('999');
+  const purityFactor = isFineSilver999 ? 1.0 : 0.925;
+
+  // Dynamic Price Calculations using requested formulas:
+  // Silver Value = Net Weight (g) * Purity Factor * Live Silver Rate (₹/g)
+  // Final Price = Silver Value + Calculated Making Charge
+  const currentWeight = activeVariant.weight_g;
+  const silverValue = currentWeight * purityFactor * liveSilverRate;
+  const makingCharge = activeVariant.making_charge || Math.round(currentWeight * 25);
+  const finalCalculatedPrice = Math.round((silverValue + makingCharge) * 100) / 100;
+
+  const currentSku = `${product.sku || 'SBS-DT-003'}${activeVariant.sku_suffix || ''}`;
+
+  // Check if current variant is in cart
+  const cartItem = cart.find(
+    (item) =>
+      item.product.id === product.id &&
+      (item.product.selected_variant?.size === activeVariant.name ||
+        item.product.selected_variant?.label === activeVariant.name)
+  );
+  const inCartQuantity = cartItem ? cartItem.quantity : 0;
+
+  // Handlers
   const handleAddToCart = () => {
-    addToCart(product, quantity);
-    Alert.alert('Added to Cart', `${product.title} has been added to your cart.`);
+    const variantObj: ProductVariant = {
+      size: activeVariant.name,
+      label: activeVariant.name,
+      weight_g: activeVariant.weight_g,
+      retail_price: finalCalculatedPrice,
+      price: finalCalculatedPrice,
+      sku: currentSku,
+      height: String(activeVariant.height_in || ''),
+      diameter: String(activeVariant.diameter_in || ''),
+    };
+
+    const productWithVariant: Product = {
+      ...product,
+      sku: currentSku,
+      weight_g: activeVariant.weight_g,
+      retail_price: finalCalculatedPrice,
+      selected_variant: variantObj,
+    };
+
+    addToCart(productWithVariant, 1);
+    setAddSuccess(true);
+    setTimeout(() => setAddSuccess(false), 2500);
   };
 
+  const handleUpdateQty = (newQty: number) => {
+    updateQuantity(product.id, newQty);
+  };
+
+  const { user } = useAuth();
+
   const handleWhatsAppOrder = async () => {
-    const imgUrl = getFullImageUrl(selectedImg || product.featured_image);
-    let text = `*SAI BALAJI SILVERWORKS - PRODUCT ENQUIRY*\n`;
-    text += `-------------------------\n\n`;
-    text += `*Product*: ${product.title}\n`;
-    text += `• SKU: ${product.sku || 'N/A'}\n`;
-    text += `• Purity: ${product.silver_purity}\n`;
-    text += `• Weight: ${product.weight_g} grams\n`;
-    text += `• Quantity: ${quantity}\n`;
-    text += `• Total Price: ₹${(product.retail_price * quantity).toLocaleString('en-IN')}\n`;
-    if (imgUrl) {
-      text += `Product Photo Link:\n${imgUrl}\n`;
+    if (!user) {
+      Alert.alert(
+        'Sign In Required',
+        'Please sign in to your account to place orders or make inquiries via WhatsApp.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Sign In / Register',
+            onPress: () => navigation.navigate('Account'),
+          },
+        ]
+      );
+      return;
     }
-    text += `\nPlease guide me on availability, delivery address & payment details.`;
+
+    const imgUrl = getFullImageUrl(selectedImg || product.featured_image);
+    let text = `*SAI BALAJI SILVERWORKS - LUXURY PRODUCT ENQUIRY*\n`;
+    text += `------------------------------------\n\n`;
+    text += `*Product*: ${product.title}\n`;
+    text += `• Selected Measurement / Size: ${activeVariant.name} (${activeVariant.weight_g}g)\n`;
+    text += `• SKU: ${currentSku}\n`;
+    text += `• Silver Purity: ${isFineSilver999 ? '999 Fine Silver' : '925 Sterling Silver'}\n`;
+    text += `• Net Weight: ${currentWeight} grams\n`;
+    text += `• Live Silver Rate: ₹${liveSilverRate.toFixed(1)}/g\n`;
+    text += `• Making Charge: ₹${makingCharge.toLocaleString('en-IN')}\n`;
+    text += `• Total Price: ₹${finalCalculatedPrice.toLocaleString('en-IN')}\n`;
+    if (imgUrl) {
+      text += `\nPhoto Link:\n${imgUrl}\n`;
+    }
+    text += `\nPlease confirm availability & courier options.`;
 
     await openWhatsAppDirect(text, imgUrl);
   };
 
-  const handleSharePhotoOnly = async () => {
-    const imgUrl = getFullImageUrl(selectedImg || product.featured_image);
-    await downloadAndSharePhoto(imgUrl, product.title);
+  const handleCopyLink = () => {
+    const url = `https://saibalajisilverworks.com/retail/${product.slug || product.id}`;
+    if (Platform.OS === 'web') {
+      try {
+        navigator.clipboard.writeText(url);
+      } catch (e) {}
+    }
+    setCopySuccessText(true);
+    setTimeout(() => setCopySuccessText(false), 2000);
   };
 
   const topInset = Math.max(insets.top + 8, 40);
@@ -79,435 +257,984 @@ export const ProductDetailScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-        
-        {/* Gallery Image Display - Tapping photo downloads photo as JPEG & shares photo */}
-        <TouchableOpacity
-          style={styles.imageContainer}
-          activeOpacity={0.9}
-          onPress={handleSharePhotoOnly}
-        >
-          <Image source={{ uri: getFullImageUrl(selectedImg) }} style={styles.mainImage} />
-          
-          <View style={styles.imageOverlayBadge}>
-            <Download color="#FFFFFF" size={12} />
-            <Text style={styles.imageOverlayBadgeText}>Tap photo to download & send via WhatsApp</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.backBtn, { top: topInset }]}
-            onPress={() => navigation.goBack()}
-          >
-            <ArrowLeft color="#1A1918" size={18} />
+        {/* TOP BREADCRUMB NAVIGATION BAR */}
+        <View style={[styles.breadcrumbContainer, { paddingTop: 10 }]}>
+          <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+            <Text style={styles.breadcrumbText}>Home</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.wishlistBtn, { top: topInset }]}
-            onPress={() => toggleWishlist(product)}
-          >
-            <Heart color={inWishlist ? '#E53E3E' : '#1A1918'} fill={inWishlist ? '#E53E3E' : 'none'} size={18} />
+          <ChevronRight size={12} color="#898985" />
+          <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
+            <Text style={styles.breadcrumbText}>Retail</Text>
           </TouchableOpacity>
-        </TouchableOpacity>
+          <ChevronRight size={12} color="#898985" />
+          <Text style={styles.breadcrumbActiveText} numberOfLines={1}>
+            {product.title}
+          </Text>
+        </View>
 
-        {/* Image Thumbnails if multiple */}
-        {product.images && product.images.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled={true} style={styles.thumbScroll}>
-            {product.images.map((img, idx) => (
+        {/* MEDIA GALLERY SECTION */}
+        <View style={styles.galleryWrapper}>
+          {/* Main Image Container */}
+          <View style={styles.mainImageFrame}>
+            <Image
+              source={{ uri: getFullImageUrl(selectedImg || product.featured_image) }}
+              style={styles.mainImage}
+              resizeMode="contain"
+            />
+
+            {/* Floating Action Buttons */}
+            <View style={styles.floatingActions}>
               <TouchableOpacity
-                key={idx}
-                onPress={() => setSelectedImg(img)}
-                style={[styles.thumbBox, selectedImg === img && styles.activeThumb]}
+                style={styles.actionBtnCircle}
+                onPress={() => toggleWishlist(product)}
+                activeOpacity={0.8}
               >
-                <Image source={{ uri: getFullImageUrl(img) }} style={styles.thumbImage} />
+                <Heart
+                  size={18}
+                  color={inWishlist ? '#E53E3E' : '#202020'}
+                  fill={inWishlist ? '#E53E3E' : 'none'}
+                />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
 
-        {/* Product Meta */}
-        <View style={styles.detailsContainer}>
-          <View style={styles.purityRow}>
-            <View style={styles.purityTag}>
-              <ShieldCheck color="#C5A059" size={14} />
-              <Text style={styles.purityTagText}>{product.silver_purity} Hallmarked Silver</Text>
+              <TouchableOpacity
+                style={styles.actionBtnCircle}
+                onPress={() => setIsShareModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Share2 size={18} color="#202020" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.skuText}>SKU: {product.sku}</Text>
+
+            {/* Back Button Overlay */}
+            <TouchableOpacity
+              style={styles.backBtnOverlay}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
+              <ArrowLeft size={18} color="#202020" />
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.title}>{product.title}</Text>
-          <Text style={styles.weight}>Weight: {product.weight_g} grams</Text>
+          {/* Thumbnails Gallery */}
+          {product.images && product.images.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbnailRow}
+            >
+              {product.images.map((img, idx) => {
+                const isSelected = selectedImg === img;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setSelectedImg(img)}
+                    style={[styles.thumbBox, isSelected && styles.activeThumbBox]}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: getFullImageUrl(img) }} style={styles.thumbImage} />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
 
-          {/* Price Box */}
-          <View style={styles.priceCard}>
-            <Text style={styles.priceLabel}>Retail Price</Text>
-            <Text style={styles.priceValue}>₹{product.retail_price.toLocaleString()}</Text>
-            <Text style={styles.priceSub}>Price inclusive of craftsmanship & hallmark certification. +3% GST at checkout.</Text>
-          </View>
-
-          {/* Specifications */}
-          <View style={styles.specBox}>
-            <Text style={styles.specTitle}>Product Specifications</Text>
-            <View style={styles.specRow}>
-              <Text style={styles.specLabel}>Category:</Text>
-              <Text style={styles.specVal}>{product.category_slug}</Text>
-            </View>
-            {product.subcategory && (
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Subcategory:</Text>
-                <Text style={styles.specVal}>{product.subcategory}</Text>
-              </View>
-            )}
-            <View style={styles.specRow}>
-              <Text style={styles.specLabel}>Availability:</Text>
-              <Text style={[styles.specVal, { color: product.stock > 0 ? '#276749' : '#C53030' }]}>
-                {product.stock > 0 ? `In Stock (${product.stock} units)` : 'Out of Stock'}
+        {/* RIGHT COLUMN - PRODUCT PRICING ENGINE & DETAILS */}
+        <View style={styles.detailsSection}>
+          {/* Badges Bar */}
+          <View style={styles.badgeRow}>
+            <View style={styles.purityBadge}>
+              <Sparkles size={12} color="#C5A059" />
+              <Text style={styles.purityBadgeText}>
+                {isFineSilver999 ? '999 FINE SILVER' : '925 STERLING SILVER'}
               </Text>
             </View>
+
+            <View style={styles.pillBadge}>
+              <Text style={styles.pillBadgeText}>Net: {currentWeight}g</Text>
+            </View>
+
+            {activeVariant.height_in && (
+              <View style={styles.pillBadge}>
+                <Text style={styles.pillBadgeText}>
+                  Height: {activeVariant.height_in} in, Diameter: {activeVariant.diameter_in} in
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Description */}
-          <View style={styles.descBox}>
-            <Text style={styles.descTitle}>Description</Text>
-            <Text style={styles.descText}>{product.description}</Text>
-          </View>
+          {/* Title & SKU */}
+          <Text style={styles.titleText}>{product.title}</Text>
+          <Text style={styles.skuText}>
+            SKU: {currentSku} | {product.subcategory || product.category_slug || 'Silverware'}
+          </Text>
 
-          {/* Quantity Selector */}
-          <View style={styles.qtyContainer}>
-            <Text style={styles.qtyLabel}>Quantity:</Text>
-            <View style={styles.qtyRow}>
-              <TouchableOpacity
-                style={styles.qtyBtn}
-                onPress={() => setQuantity(Math.max(1, quantity - 1))}
-              >
-                <Text style={styles.qtyBtnText}>-</Text>
-              </TouchableOpacity>
-              <Text style={styles.qtyVal}>{quantity}</Text>
-              <TouchableOpacity
-                style={styles.qtyBtn}
-                onPress={() => setQuantity(quantity + 1)}
-              >
-                <Text style={styles.qtyBtnText}>+</Text>
-              </TouchableOpacity>
+          {/* DYNAMIC PRICE DISPLAY */}
+          <View style={styles.priceContainer}>
+            <View style={styles.priceHeaderRow}>
+              <Text style={styles.priceCurrency}>₹</Text>
+              <Text style={styles.priceMainText}>{finalCalculatedPrice.toLocaleString('en-IN')}</Text>
+              <View style={styles.liveRateTag}>
+                <RefreshCw size={10} color="#C5A059" style={{ marginRight: 4 }} />
+                <Text style={styles.liveRateTagText}>Live Silver Rate</Text>
+              </View>
+            </View>
+
+            {/* DYNAMIC PRICE BREAKDOWN BOX (3-Column Grid) */}
+            <View style={styles.breakdownBox}>
+              <View style={styles.breakdownCol}>
+                <Text style={styles.breakdownLabel}>NET WEIGHT</Text>
+                <Text style={styles.breakdownVal}>{currentWeight} g</Text>
+              </View>
+              <View style={styles.breakdownDivider} />
+              <View style={styles.breakdownCol}>
+                <Text style={styles.breakdownLabel}>LIVE RATE</Text>
+                <Text style={styles.breakdownVal}>₹{liveSilverRate.toFixed(1)}/g</Text>
+              </View>
+              <View style={styles.breakdownDivider} />
+              <View style={styles.breakdownCol}>
+                <Text style={styles.breakdownLabel}>MAKING CHARGE</Text>
+                <Text style={styles.breakdownVal}>₹{makingCharge.toLocaleString('en-IN')}</Text>
+              </View>
             </View>
           </View>
 
+          {/* MEASUREMENT / SIZE SELECTOR */}
+          <View style={styles.measurementCard}>
+            <View style={styles.measurementHeader}>
+              <Text style={styles.measurementTitle}>SELECT MEASUREMENT / SIZE:</Text>
+              <Text style={styles.activeMeasurementSubtitle}>
+                {activeVariant.name} ({currentWeight}g)
+              </Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.measurementScroll}
+            >
+              {DEFAULT_MEASUREMENT_VARIANTS.map((variant) => {
+                const isSelected = activeVariant.id === variant.id;
+                // Calculate variant price dynamically
+                const vWeight = variant.weight_g;
+                const vSilverVal = vWeight * purityFactor * liveSilverRate;
+                const vMaking = variant.making_charge || Math.round(vWeight * 25);
+                const vFinalPrice = Math.round(vSilverVal + vMaking);
+
+                return (
+                  <TouchableOpacity
+                    key={variant.id}
+                    onPress={() => setActiveVariant(variant)}
+                    style={[styles.measurementPill, isSelected && styles.activeMeasurementPill]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.measurementPillTitle, isSelected && styles.activeMeasurementPillTitle]}>
+                      {variant.name}
+                    </Text>
+                    <Text style={[styles.measurementPillSub, isSelected && styles.activeMeasurementPillSub]}>
+                      ₹{vFinalPrice.toLocaleString('en-IN')} ({vWeight}g)
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {/* Crafted Description Lead */}
+          <Text style={styles.craftLeadText}>
+            Exquisite handcrafted {product.title} by Sai Balaji Silverworks. Meticulously designed with authentic {isFineSilver999 ? '999 Fine Silver' : '925 Sterling Silver'} and a protective anti-tarnish luster.
+          </Text>
+
+          {/* BUYING ACTIONS BAR */}
+          <View style={styles.buyingActionsRow}>
+            {inCartQuantity > 0 ? (
+              <View style={styles.inCartRow}>
+                {/* Quantity Stepper */}
+                <View style={styles.stepperContainer}>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => handleUpdateQty(inCartQuantity - 1)}
+                  >
+                    <Text style={styles.stepperBtnText}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.stepperValText}>{inCartQuantity}</Text>
+                  <TouchableOpacity
+                    style={styles.stepperBtn}
+                    onPress={() => handleUpdateQty(inCartQuantity + 1)}
+                  >
+                    <Text style={styles.stepperBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* View Cart Button */}
+                <TouchableOpacity
+                  style={styles.viewCartBtn}
+                  onPress={() => navigation.navigate('Cart')}
+                  activeOpacity={0.88}
+                >
+                  <ShoppingBag size={16} color="#FFFFFF" />
+                  <Text style={styles.viewCartBtnText}>IN BAG (VIEW BAG)</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.addBagBtn, addSuccess && styles.addBagBtnSuccess]}
+                onPress={handleAddToCart}
+                activeOpacity={0.88}
+              >
+                {addSuccess ? (
+                  <>
+                    <Check size={18} color="#FFFFFF" />
+                    <Text style={styles.addBagBtnText}>ADDED TO BAG</Text>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag size={18} color="#FFFFFF" />
+                    <Text style={styles.addBagBtnText}>ADD TO SHOPPING BAG</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Direct WhatsApp Inquiry Button */}
+            <TouchableOpacity
+              style={styles.whatsappActionBtn}
+              onPress={handleWhatsAppOrder}
+              activeOpacity={0.88}
+            >
+              <MessageCircle size={20} color="#25D366" />
+            </TouchableOpacity>
+          </View>
+
+          {/* TRUST BADGES & GUARANTEES (3-Column Grid) */}
+          <View style={styles.trustGrid}>
+            <View style={styles.trustItem}>
+              <ShieldCheck size={20} color="#202020" style={{ marginBottom: 4 }} />
+              <Text style={styles.trustItemTitle}>NABL Hallmarked</Text>
+              <Text style={styles.trustItemSub}>100% Pure Silver</Text>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <Truck size={20} color="#202020" style={{ marginBottom: 4 }} />
+              <Text style={styles.trustItemTitle}>Insured Transit</Text>
+              <Text style={styles.trustItemSub}>Safe Delivery</Text>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <Factory size={20} color="#202020" style={{ marginBottom: 4 }} />
+              <Text style={styles.trustItemTitle}>Direct Factory</Text>
+              <Text style={styles.trustItemSub}>Tenali Unit</Text>
+            </View>
+          </View>
+
+          {/* TABBED INFORMATION SECTION */}
+          <View style={styles.tabsContainer}>
+            {/* Tab Selector Header */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsHeaderScroll}>
+              <TouchableOpacity
+                style={[styles.tabHeaderBtn, activeTab === 'desc' && styles.activeTabHeaderBtn]}
+                onPress={() => setActiveTab('desc')}
+              >
+                <Text style={[styles.tabHeaderBtnText, activeTab === 'desc' && styles.activeTabHeaderBtnText]}>
+                  Description
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tabHeaderBtn, activeTab === 'specs' && styles.activeTabHeaderBtn]}
+                onPress={() => setActiveTab('specs')}
+              >
+                <Text style={[styles.tabHeaderBtnText, activeTab === 'specs' && styles.activeTabHeaderBtnText]}>
+                  Specifications
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tabHeaderBtn, activeTab === 'purity' && styles.activeTabHeaderBtn]}
+                onPress={() => setActiveTab('purity')}
+              >
+                <Text style={[styles.tabHeaderBtnText, activeTab === 'purity' && styles.activeTabHeaderBtnText]}>
+                  Purity Details
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tabHeaderBtn, activeTab === 'care' && styles.activeTabHeaderBtn]}
+                onPress={() => setActiveTab('care')}
+              >
+                <Text style={[styles.tabHeaderBtnText, activeTab === 'care' && styles.activeTabHeaderBtnText]}>
+                  Care Guide
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <View style={styles.tabContentBox}>
+              {activeTab === 'desc' && (
+                <View>
+                  <Text style={styles.tabBodyText}>
+                    {product.description ||
+                      `Crafted with supreme mastery in Tenali, this piece represents the pinnacle of South Indian silver smithing. Made from high-purity silver, it undergoes 18 steps of manual polishing and quality inspection.`}
+                  </Text>
+                  <Text style={[styles.tabBodyText, { marginTop: 10 }]}>
+                    Every curve and engraving reflects generations of traditional artistry, designed to be cherished as a timeless family heirloom.
+                  </Text>
+                </View>
+              )}
+
+              {activeTab === 'specs' && (
+                <View style={styles.specsGrid}>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specKey}>Silver Purity:</Text>
+                    <Text style={styles.specVal}>{isFineSilver999 ? '999 Fine Silver (99.9%)' : '925 Sterling Silver (92.5%)'}</Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specKey}>Net Silver Weight:</Text>
+                    <Text style={styles.specVal}>{currentWeight} grams</Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specKey}>Making Charge:</Text>
+                    <Text style={styles.specVal}>₹{makingCharge.toLocaleString('en-IN')}</Text>
+                  </View>
+                  {activeVariant.height_in && (
+                    <View style={styles.specRow}>
+                      <Text style={styles.specKey}>Dimensions:</Text>
+                      <Text style={styles.specVal}>Height {activeVariant.height_in} in, Diameter {activeVariant.diameter_in} in</Text>
+                    </View>
+                  )}
+                  <View style={styles.specRow}>
+                    <Text style={styles.specKey}>SKU Code:</Text>
+                    <Text style={styles.specVal}>{currentSku}</Text>
+                  </View>
+                  <View style={styles.specRow}>
+                    <Text style={styles.specKey}>Hallmarking:</Text>
+                    <Text style={styles.specVal}>BIS NABL Laser Hallmarked</Text>
+                  </View>
+                </View>
+              )}
+
+              {activeTab === 'purity' && (
+                <View>
+                  <Text style={styles.tabBodyText}>
+                    • Certified by NABL accredited testing laboratories under BIS Hallmarking standards.
+                  </Text>
+                  <Text style={styles.tabBodyText}>
+                    • Tested via XRF Spectroscopic Analysis ensuring exact metal purity tolerances.
+                  </Text>
+                  <Text style={styles.tabBodyText}>
+                    • Includes authentic hallmark certificate and laser engraving on the base of every artifact.
+                  </Text>
+                </View>
+              )}
+
+              {activeTab === 'care' && (
+                <View>
+                  <Text style={styles.tabBodyText}>
+                    • Store in airtight velvet bags provided to prevent ambient sulfur oxidation.
+                  </Text>
+                  <Text style={styles.tabBodyText}>
+                    • Wipe softly with pure microfiber cloth. Avoid abrasive detergents or hard chemical dips.
+                  </Text>
+                  <Text style={styles.tabBodyText}>
+                    • Keep away from direct perfumes, hairsprays, and moisture exposure.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
       </ScrollView>
 
-      {/* Action Footer */}
-      <View style={[styles.footerBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+      {/* SHARE MODAL OVERLAY */}
+      <Modal
+        visible={isShareModalOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsShareModalOpen(false)}
+      >
         <TouchableOpacity
-          style={styles.whatsappBtn}
-          onPress={handleWhatsAppOrder}
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setIsShareModalOpen(false)}
         >
-          <MessageCircle color="#25D366" size={20} />
-        </TouchableOpacity>
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Share Product</Text>
+              <TouchableOpacity onPress={() => setIsShareModalOpen(false)}>
+                <X size={20} color="#202020" />
+              </TouchableOpacity>
+            </View>
 
-        <TouchableOpacity
-          style={styles.addCartBtn}
-          onPress={handleAddToCart}
-        >
-          <ShoppingBag color="#FFFFFF" size={18} />
-          <Text style={styles.addCartText}>Add to Shopping Cart</Text>
+            <View style={styles.shareOptionsGrid}>
+              <TouchableOpacity style={styles.shareOptionBtn} onPress={handleCopyLink}>
+                <View style={[styles.shareIconCircle, { backgroundColor: '#E2E8F0' }]}>
+                  <Copy size={20} color="#202020" />
+                </View>
+                <Text style={styles.shareOptionText}>{copySuccessText ? 'Copied!' : 'Copy Link'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.shareOptionBtn} onPress={handleWhatsAppOrder}>
+                <View style={[styles.shareIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                  <MessageCircle size={20} color="#16A34A" />
+                </View>
+                <Text style={styles.shareOptionText}>WhatsApp</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shareOptionBtn}
+                onPress={() => {
+                  const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+                    `https://saibalajisilverworks.com/retail/${product.slug || product.id}`
+                  )}`;
+                  Linking.openURL(url).catch(() => {});
+                }}
+              >
+                <View style={[styles.shareIconCircle, { backgroundColor: '#DBEAFE' }]}>
+                  <Facebook size={20} color="#2563EB" />
+                </View>
+                <Text style={styles.shareOptionText}>Facebook</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shareOptionBtn}
+                onPress={() => {
+                  handleCopyLink();
+                  Linking.openURL('https://instagram.com').catch(() => {});
+                }}
+              >
+                <View style={[styles.shareIconCircle, { backgroundColor: '#FCE7F3' }]}>
+                  <Instagram size={20} color="#DB2777" />
+                </View>
+                <Text style={styles.shareOptionText}>Instagram</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </TouchableOpacity>
-      </View>
+      </Modal>
     </View>
   );
 };
 
+export default ProductDetailScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F6F6',
+    backgroundColor: '#FAF9F5',
   },
-  notFound: {
+  notFoundContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FAF9F5',
   },
   notFoundText: {
     fontSize: 16,
-    color: '#111827',
+    color: '#202020',
   },
-  imageContainer: {
-    width: width,
-    height: width * 0.9,
+  breadcrumbContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  breadcrumbText: {
+    fontSize: 12,
+    color: '#777777',
+    fontWeight: '500',
+  },
+  breadcrumbActiveText: {
+    fontSize: 12,
+    color: '#202020',
+    fontWeight: '600',
+    flex: 1,
+  },
+  galleryWrapper: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  mainImageFrame: {
+    width: '100%',
+    aspectRatio: 3 / 2,
+    backgroundColor: '#000000',
+    borderRadius: 24,
+    overflow: 'hidden',
     position: 'relative',
-    backgroundColor: '#FFFFFF',
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mainImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
-  backBtn: {
+  floatingActions: {
     position: 'absolute',
-    left: 16,
+    top: 14,
+    right: 14,
+    flexDirection: 'column',
+    gap: 10,
+  },
+  actionBtnCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  wishlistBtn: {
-    position: 'absolute',
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  thumbScroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  backBtnOverlay: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  thumbnailRow: {
+    paddingTop: 12,
+    gap: 10,
   },
   thumbBox: {
-    width: 56,
-    height: 56,
+    width: 75,
+    height: 50,
     borderRadius: 12,
     overflow: 'hidden',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#EBF0F0',
+    borderWidth: 1.5,
+    borderColor: '#EAE6DF',
+    backgroundColor: '#000000',
+    padding: 2,
   },
-  activeThumb: {
-    borderColor: '#2D6A68',
+  activeThumbBox: {
+    borderColor: '#C5A059',
     borderWidth: 2,
   },
   thumbImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'contain',
   },
-  detailsContainer: {
-    padding: 20,
+  detailsSection: {
+    paddingHorizontal: 18,
+    paddingBottom: 40,
   },
-  purityRow: {
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
   },
-  purityTag: {
+  purityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#2D6A68',
+    gap: 5,
+    backgroundColor: '#1A1918',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  purityTagText: {
+  purityBadgeText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  pillBadge: {
+    backgroundColor: '#F3EFE6',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E0D8',
+  },
+  pillBadgeText: {
+    fontSize: 10.5,
+    color: '#555555',
+    fontWeight: '600',
+  },
+  titleText: {
+    fontSize: 22,
     fontWeight: '700',
+    color: '#202020',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    lineHeight: 28,
   },
   skuText: {
-    color: '#6B7280',
     fontSize: 11,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111827',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
-  weight: {
-    fontSize: 12,
-    color: '#6B7280',
+    color: '#777777',
     marginTop: 4,
-  },
-  priceCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EBF0F0',
-    marginVertical: 16,
-    shadowColor: '#1F2937',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  priceLabel: {
-    fontSize: 10,
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    fontWeight: '700',
-  },
-  priceValue: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#2D6A68',
-    marginVertical: 2,
-  },
-  priceSub: {
-    fontSize: 11,
-    color: '#6B7280',
-    lineHeight: 16,
-  },
-  specBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EBF0F0',
-    marginBottom: 16,
-    shadowColor: '#1F2937',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  specTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  specRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 5,
-  },
-  specLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  specVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  descBox: {
     marginBottom: 16,
   },
-  descTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  descText: {
-    fontSize: 13,
-    color: '#4B5563',
-    lineHeight: 20,
-  },
-  qtyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EBF0F0',
+  priceContainer: {
     marginBottom: 20,
   },
-  qtyLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
+  priceHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    marginBottom: 12,
   },
-  qtyRow: {
+  priceCurrency: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#202020',
+  },
+  priceMainText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#202020',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  liveRateTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  qtyBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#F4F7F7',
+    backgroundColor: '#FBF4E8',
     borderWidth: 1,
-    borderColor: '#2D6A68',
+    borderColor: '#E8D4B0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginLeft: 8,
+  },
+  liveRateTagText: {
+    fontSize: 11,
+    color: '#B9A77A',
+    fontWeight: '700',
+  },
+  breakdownBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EAE6DF',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  breakdownCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  breakdownDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#EAE6DF',
+  },
+  breakdownLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#898985',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  breakdownVal: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#202020',
+  },
+  measurementCard: {
+    marginBottom: 20,
+  },
+  measurementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  measurementTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#202020',
+    letterSpacing: 0.8,
+  },
+  activeMeasurementSubtitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B9A77A',
+  },
+  measurementScroll: {
+    gap: 10,
+  },
+  measurementPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAE6DF',
+    minWidth: 120,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qtyBtnText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2D6A68',
+  activeMeasurementPill: {
+    backgroundColor: '#1A1918',
+    borderColor: '#C5A059',
+    borderWidth: 1.5,
   },
-  qtyVal: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#111827',
+  measurementPillTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#202020',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    marginBottom: 3,
   },
-  footerBar: {
+  activeMeasurementPillTitle: {
+    color: '#FFFFFF',
+  },
+  measurementPillSub: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#777777',
+  },
+  activeMeasurementPillSub: {
+    color: '#C5A059',
+  },
+  craftLeadText: {
+    fontSize: 12.5,
+    color: '#555555',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  buyingActionsRow: {
+    marginBottom: 24,
+  },
+  inCartRow: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderColor: '#EBF0F0',
+    alignItems: 'center',
     gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 8,
   },
-  whatsappBtn: {
-    width: 50,
-    height: 50,
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EAE6DF',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  stepperBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#202020',
+  },
+  stepperValText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#202020',
+    paddingHorizontal: 12,
+  },
+  viewCartBtn: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#1A1918',
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  viewCartBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  addBagBtn: {
+    height: 52,
+    backgroundColor: '#1A1918',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    shadowColor: '#1A1918',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  addBagBtnSuccess: {
+    backgroundColor: '#276749',
+  },
+  addBagBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  whatsappActionBtn: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 52,
+    height: 52,
     borderRadius: 16,
     backgroundColor: '#E8F5E9',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#25D366',
+    display: 'none', // Styled for footer/inline action if needed
   },
-  addCartBtn: {
+  trustGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EAE6DF',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    marginBottom: 24,
+  },
+  trustItem: {
     flex: 1,
-    height: 50,
-    backgroundColor: '#2D6A68',
-    borderRadius: 25,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#2D6A68',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  addCartText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  trustDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#EAE6DF',
   },
-  imageOverlayBadge: {
-    position: 'absolute',
-    bottom: 12,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(26, 25, 24, 0.85)',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    gap: 6,
-  },
-  imageOverlayBadgeText: {
-    color: '#FFFFFF',
+  trustItemTitle: {
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    color: '#202020',
+    textAlign: 'center',
+  },
+  trustItemSub: {
+    fontSize: 9.5,
+    color: '#777777',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  tabsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#EAE6DF',
+    overflow: 'hidden',
+  },
+  tabsHeaderScroll: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAE6DF',
+    paddingHorizontal: 8,
+  },
+  tabHeaderBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTabHeaderBtn: {
+    borderBottomColor: '#C5A059',
+  },
+  tabHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#777777',
+  },
+  activeTabHeaderBtnText: {
+    color: '#202020',
+    fontWeight: '700',
+  },
+  tabContentBox: {
+    padding: 18,
+  },
+  tabBodyText: {
+    fontSize: 12.5,
+    color: '#555555',
+    lineHeight: 20,
+  },
+  specsGrid: {
+    gap: 8,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#202020',
+  },
+  shareOptionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  shareOptionBtn: {
+    alignItems: 'center',
+  },
+  shareIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  shareOptionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#202020',
+  },
+  specRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F6F6',
+  },
+  specKey: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  specVal: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1A1918',
   },
 });

@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
-import { Plus } from 'lucide-react-native';
+import { Heart } from 'lucide-react-native';
 import { Product } from '../types';
 import { getProductImageUrl } from '../services/api';
-import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 
 interface ProductCardProps {
   product: Product;
@@ -12,72 +12,86 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, width }) => {
-  const { addToCart } = useCart();
+  const { toggleWishlist, isInWishlist } = useWishlist();
+  const inWishlist = isInWishlist(product.id);
 
-  const handleAdd = () => {
-    addToCart(product, 1);
-  };
+  const categoryName = product.subcategory
+    ? `${(product.category_slug || 'Silver').replace(/-/g, ' ').toUpperCase()} • ${product.subcategory.toUpperCase()}`
+    : (product.category?.name || product.category_slug || 'SILVER DINING & TABLEWARE').replace(/-/g, ' ').toUpperCase();
 
-  const categoryName = (product.category_slug || 'Silver Creation')
-    .replace(/-/g, ' ')
-    .toUpperCase();
+  const formattedSku = product.sku || `SBS-DT-${product.id.toString().padStart(3, '0')}`;
+  const priceVal = product.retail_price ? product.retail_price.toLocaleString('en-IN') : 'N/A';
 
   return (
     <TouchableOpacity
       style={[styles.card, width ? { width } : undefined]}
       onPress={onPress}
-      activeOpacity={0.9}
+      activeOpacity={0.92}
     >
-      {/* Product Image + Badges */}
+      {/* Product Image Container */}
       <View style={styles.imageContainer}>
         <Image
           source={{ uri: getProductImageUrl(product) }}
           style={styles.image}
+          resizeMode="cover"
         />
 
-        {/* Purity Badge */}
-        <View style={styles.purityBadge}>
-          <Text style={styles.purityText}>
-            ✦ {product.silver_purity || '925 STERLING'}
-          </Text>
-        </View>
-
-        {/* Weight Badge */}
-        {product.weight_g ? (
-          <View style={styles.weightBadge}>
-            <Text style={styles.weightText}>{product.weight_g}g</Text>
-          </View>
-        ) : null}
+        {/* Floating Heart / Wishlist Button */}
+        <TouchableOpacity
+          style={styles.wishlistBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            toggleWishlist(product);
+          }}
+          activeOpacity={0.8}
+        >
+          <Heart
+            size={15}
+            color={inWishlist ? '#E53E3E' : '#4A5568'}
+            fill={inWishlist ? '#E53E3E' : 'none'}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Product Details */}
       <View style={styles.details}>
+        {/* Category Tag */}
         <Text style={styles.categoryTag} numberOfLines={1}>
           {categoryName}
         </Text>
 
+        {/* Product Title */}
         <Text style={styles.title} numberOfLines={2}>
           {product.title}
         </Text>
 
+        {/* SKU Code */}
         <Text style={styles.skuText} numberOfLines={1}>
-          SKU: {product.sku || `SBS-PA-${product.id.toString().padStart(3, '0')}`}
+          SKU: {formattedSku}
         </Text>
 
-        <View style={styles.bottomRow}>
-          <Text style={styles.priceValue}>
-            ₹{product.retail_price ? product.retail_price.toLocaleString('en-IN') : 'N/A'}
-          </Text>
+        {/* Thin Divider Line */}
+        <View style={styles.divider} />
 
-          {/* Add to Bag Round Teal Plus Button */}
-          <TouchableOpacity
-            style={styles.addPlusBtn}
-            onPress={handleAdd}
-            activeOpacity={0.85}
-          >
-            <Plus color="#FFFFFF" size={16} />
-          </TouchableOpacity>
+        {/* Price Row with FROM & Live Badge */}
+        <View style={styles.priceRow}>
+          <View style={styles.fromRow}>
+            <Text style={styles.fromText}>FROM</Text>
+            <View style={styles.liveBadge}>
+              <Text style={styles.liveBadgeText}>Live</Text>
+            </View>
+          </View>
+          <Text style={styles.priceValue}>₹{priceVal}</Text>
         </View>
+
+        {/* Full-width VIEW DETAILS Button */}
+        <TouchableOpacity
+          style={styles.viewDetailsBtn}
+          onPress={onPress}
+          activeOpacity={0.88}
+        >
+          <Text style={styles.viewDetailsText}>VIEW DETAILS</Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -86,9 +100,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E8E7E2',
+    borderColor: '#EAE6DF',
     overflow: 'hidden',
     marginBottom: 16,
     shadowColor: '#000000',
@@ -99,92 +113,109 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 145,
-    backgroundColor: '#F7F6F2',
+    aspectRatio: 3 / 2,
+    backgroundColor: '#000000',
     position: 'relative',
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   image: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
-  purityBadge: {
+  wishlistBtn: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: 'rgba(17, 17, 17, 0.88)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  purityText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  weightBadge: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#E5E5E0',
-  },
-  weightText: {
-    color: '#111111',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  details: {
-    padding: 10,
-  },
-  categoryTag: {
-    color: '#898985',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 2,
-  },
-  title: {
-    color: '#111111',
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    lineHeight: 17,
-    height: 34,
-  },
-  skuText: {
-    color: '#999995',
-    fontSize: 10,
-    marginTop: 2,
-    marginBottom: 6,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  priceValue: {
-    color: '#111111',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  addPlusBtn: {
-    backgroundColor: '#111111',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  details: {
+    padding: 12,
+  },
+  categoryTag: {
+    color: '#B9A77A',
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  title: {
+    color: '#111111',
+    fontSize: 13.5,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    lineHeight: 18,
+    height: 36,
+  },
+  skuText: {
+    color: '#888888',
+    fontSize: 10.5,
+    marginTop: 3,
+    marginBottom: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#EAE6DF',
+    marginVertical: 6,
+  },
+  priceRow: {
+    marginVertical: 4,
+  },
+  fromRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  fromText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#777777',
+    letterSpacing: 0.5,
+  },
+  liveBadge: {
+    backgroundColor: '#FDF8EC',
+    borderWidth: 1,
+    borderColor: '#E8D4B0',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  liveBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#B9A77A',
+  },
+  priceValue: {
+    color: '#111111',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  viewDetailsBtn: {
+    backgroundColor: '#1A1918',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  viewDetailsText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 });
