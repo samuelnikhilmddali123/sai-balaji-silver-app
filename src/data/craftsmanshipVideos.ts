@@ -21,14 +21,11 @@ const CATEGORIES = [
 ];
 
 const THUMBNAILS = [
-  'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=600&q=80',
-  'https://images.unsplash.com/photo-1608755728617-aefab37d2edd?w=600&q=80',
-  'https://images.unsplash.com/photo-1611591474155-23e53760e98f?w=600&q=80',
-  'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600&q=80',
-  'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?w=600&q=80',
-  'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&q=80',
-  'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=600&q=80',
-  'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600&q=80',
+  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
+  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
+  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Elegant%20Silver%20Lakshmi%20Devi%20Idol%20with%20Ornate%20Arch.webp',
+  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Shree%20Divya%20Silver%20Masala%20Box%20Set.webp',
+  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Ornate%20Silver%20Diya%20Lamp%20Pair.webp',
 ];
 
 const SAMPLE_MP4_URLS = [

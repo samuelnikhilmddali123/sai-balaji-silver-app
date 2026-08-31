@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import {
   Play,
   Pause,
@@ -29,6 +31,8 @@ import {
   Video,
   ChevronDown,
 } from 'lucide-react-native';
+import { AppVideoPlayer } from '../components/AppVideoPlayer';
+import { VideoPlayerModal } from '../components/VideoPlayerModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BASE_URL = 'https://saibalajisilverworkspvtltd.com';
@@ -42,6 +46,7 @@ interface ActiveVideo {
   category?: string;
   code?: string;
   video_url?: string;
+  thumbnail_url?: string;
 }
 
 export const AboutScreen: React.FC = () => {
@@ -52,13 +57,34 @@ export const AboutScreen: React.FC = () => {
   const [displayCount, setDisplayCount] = useState<number>(INITIAL_DISPLAY_COUNT);
   const [isLoadingVideos, setIsLoadingVideos] = useState<boolean>(true);
 
-  // Video Player Modal State
+  // Video Player Modal & Thumbnail State
   const [activeVideo, setActiveVideo] = useState<ActiveVideo | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isPlayingModal, setIsPlayingModal] = useState(true);
-  const [isMutedModal, setIsMutedModal] = useState(true);
+  const [isMutedModal, setIsMutedModal] = useState(false);
   const [modalProgress, setModalProgress] = useState(0);
+  const [currentTimeModal, setCurrentTimeModal] = useState<number>(0);
+  const [durationModal, setDurationModal] = useState<number>(0);
+  const [replayTriggerModal, setReplayTriggerModal] = useState<number>(0);
+  const [seekToSecondsModal, setSeekToSecondsModal] = useState<number | null>(null);
   const [isFullscreenModal, setIsFullscreenModal] = useState(false);
+  const [thumbnailMap, setThumbnailMap] = useState<Record<string, string>>({});
+
+  // Screen orientation lock for fullscreen video
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      if (isFullscreenModal && isVideoModalOpen) {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+      } else {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+      }
+    }
+    return () => {
+      if (Platform.OS !== 'web') {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+      }
+    };
+  }, [isFullscreenModal, isVideoModalOpen]);
 
   // Fetch Videos from API
   useEffect(() => {
@@ -78,6 +104,9 @@ export const AboutScreen: React.FC = () => {
           video_url: item.video_url?.startsWith('/')
             ? `${BASE_URL}${item.video_url}`
             : item.video_url,
+          thumbnail_url: item.thumbnail_url?.startsWith('/')
+            ? `${BASE_URL}${item.thumbnail_url}`
+            : (item.thumbnail_url || 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp'),
         }));
 
         setVideoList(formattedItems);
@@ -91,12 +120,77 @@ export const AboutScreen: React.FC = () => {
     fetchVideoGallery();
   }, []);
 
+  // Generate real video frame thumbnails for videoList
+  useEffect(() => {
+    if (videoList.length === 0) return;
+
+    let isMounted = true;
+    const generateThumbnails = async () => {
+      for (const vid of videoList) {
+        if (vid.video_url && !thumbnailMap[vid.video_url]) {
+          try {
+            const { uri } = await VideoThumbnails.getThumbnailAsync(vid.video_url, { time: 800 });
+            if (uri && isMounted) {
+              setThumbnailMap((prev) => ({ ...prev, [vid.video_url!]: uri }));
+            }
+          } catch (e) {}
+        }
+      }
+    };
+
+    generateThumbnails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [videoList]);
+
+  // Generate thumbnails for fixed featured & doc videos
+  useEffect(() => {
+    let isMounted = true;
+    const initFixedThumbnails = async () => {
+      const urls = [
+        `${BASE_URL}/public/videos/6Z1A1842.MP4`,
+        `${BASE_URL}/public/videos/6Z1A1823.MP4`,
+      ];
+      for (const url of urls) {
+        if (url && !thumbnailMap[url]) {
+          try {
+            const { uri } = await VideoThumbnails.getThumbnailAsync(url, { time: 800 });
+            if (uri && isMounted) {
+              setThumbnailMap((prev) => ({ ...prev, [url]: uri }));
+            }
+          } catch (e) {}
+        }
+      }
+    };
+    initFixedThumbnails();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleOpenVideo = (video: ActiveVideo) => {
     setActiveVideo(video);
     setIsPlayingModal(true);
+    setIsMutedModal(false);
     setModalProgress(0);
+    setCurrentTimeModal(0);
+    setDurationModal(0);
+    setSeekToSecondsModal(null);
     setIsFullscreenModal(false);
     setIsVideoModalOpen(true);
+  };
+
+  const handleCloseVideo = async () => {
+    setIsFullscreenModal(false);
+    setIsVideoModalOpen(false);
+    setActiveVideo(null);
+    if (Platform.OS !== 'web') {
+      try {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      } catch (e) {}
+    }
   };
 
   const handleLoadMore = () => {
@@ -109,6 +203,7 @@ export const AboutScreen: React.FC = () => {
       'Unscripted footage of high precision laser engraving at our Tenali silver manufacturing facility. File code: 6Z1A1842.MP4.',
     code: '#6Z1A1842',
     video_url: `${BASE_URL}/public/videos/6Z1A1842.MP4`,
+    thumbnail_url: 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
   };
 
   const mfgVideoData: ActiveVideo = {
@@ -117,6 +212,7 @@ export const AboutScreen: React.FC = () => {
       'Unscripted footage of silver kalash & diya polishing at our Tenali silver manufacturing facility. File code: 6Z1A1823.MP4.',
     code: '#6Z1A1823',
     video_url: `${BASE_URL}/public/videos/6Z1A1823.MP4`,
+    thumbnail_url: 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
   };
 
   const visibleVideos = videoList.slice(0, displayCount);
@@ -162,6 +258,16 @@ export const AboutScreen: React.FC = () => {
           activeOpacity={0.92}
           onPress={() => handleOpenVideo(docVideoData)}
         >
+          <Image
+            source={{
+              uri:
+                thumbnailMap[docVideoData.video_url!] ||
+                docVideoData.thumbnail_url ||
+                'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
+            }}
+            style={{ ...StyleSheet.absoluteFillObject, opacity: 0.45 }}
+            resizeMode="cover"
+          />
           <View style={styles.docBadge}>
             <Text style={styles.docBadgeText}>COMPANY DOCUMENTARY VIDEO</Text>
           </View>
@@ -206,6 +312,16 @@ export const AboutScreen: React.FC = () => {
             activeOpacity={0.9}
             onPress={() => handleOpenVideo(mfgVideoData)}
           >
+            <Image
+              source={{
+                uri:
+                  thumbnailMap[mfgVideoData.video_url!] ||
+                  mfgVideoData.thumbnail_url ||
+                  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
+              }}
+              style={{ width: '100%', height: '100%', position: 'absolute' }}
+              resizeMode="cover"
+            />
             <View style={styles.featuredVideoOverlay}>
               <View style={styles.goldPlayCircle}>
                 <Play size={22} color="#1A1918" fill="#1A1918" style={{ marginLeft: 2 }} />
@@ -310,6 +426,17 @@ export const AboutScreen: React.FC = () => {
                 >
                   {/* VIDEO THUMBNAIL CONTAINER */}
                   <View style={styles.galleryThumbnailFrame}>
+                    <Image
+                      source={{
+                        uri:
+                          (video.video_url && thumbnailMap[video.video_url]) ||
+                          (video.thumbnail_url && !video.thumbnail_url.endsWith('.MP4') && !video.thumbnail_url.endsWith('.mp4')
+                            ? video.thumbnail_url
+                            : 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp'),
+                      }}
+                      style={{ width: '100%', height: '100%', position: 'absolute' }}
+                      resizeMode="cover"
+                    />
                     {/* TOP BADGES */}
                     <View style={styles.galleryBadgesOverlay}>
                       <View style={styles.categoryPill}>
@@ -368,126 +495,22 @@ export const AboutScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      {/* VIDEO PLAYER SHOWCASE MODAL */}
-      <Modal
-        visible={isVideoModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          setIsFullscreenModal(false);
+      {/* VIDEO PLAYER SHOWCASE MODAL ADOPTED FROM SAIBALAJI_SILVERWORKS */}
+      <VideoPlayerModal
+        isOpen={isVideoModalOpen}
+        onClose={() => {
           setIsVideoModalOpen(false);
+          setActiveVideo(null);
         }}
-      >
-        <View
-          style={[
-            styles.modalOverlay,
-            isFullscreenModal && styles.fullscreenModalOverlay,
-          ]}
-        >
-          <View
-            style={[
-              styles.modalVideoCard,
-              isFullscreenModal && styles.fullscreenVideoCard,
-            ]}
-          >
-            {/* TOP HEADER ROW */}
-            <View style={styles.modalHeaderRow}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.modalShowcaseTag}>
-                  SAI BALAJI SILVERWORKS CINEMATIC SHOWCASE
-                </Text>
-                <Text style={styles.modalVideoTitleText} numberOfLines={1}>
-                  {activeVideo?.title || 'Sai Balaji Silverworks Video'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.modalCloseCircle}
-                onPress={() => {
-                  setIsFullscreenModal(false);
-                  setIsVideoModalOpen(false);
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X color="#FFFFFF" size={18} />
-              </TouchableOpacity>
-            </View>
-
-            {/* BLACK VIDEO DISPLAY AREA */}
-            <View
-              style={[
-                styles.modalVideoDisplayArea,
-                isFullscreenModal && styles.fullscreenVideoDisplayArea,
-              ]}
-            />
-
-            {/* CONTROLS OVERLAY BAR AT BOTTOM */}
-            <View style={styles.modalControlsBar}>
-              {/* PROGRESS LINE SCRUBBER */}
-              <View style={styles.scrubberLineBackground}>
-                <View style={[styles.scrubberLineFill, { width: `${modalProgress * 100}%` }]} />
-                <View style={[styles.scrubberKnobDot, { left: `${modalProgress * 100}%` }]} />
-              </View>
-
-              {/* ACTION BUTTONS ROW */}
-              <View style={styles.controlsActionRow}>
-                {/* LEFT SIDE CONTROLS: PLAY/PAUSE, MUTE, TIMER */}
-                <View style={styles.leftControlsGroup}>
-                  <TouchableOpacity
-                    style={styles.goldPlayPauseCircle}
-                    onPress={() => setIsPlayingModal(!isPlayingModal)}
-                    activeOpacity={0.8}
-                  >
-                    {isPlayingModal ? (
-                      <Pause size={16} color="#1A1918" fill="#1A1918" />
-                    ) : (
-                      <Play size={16} color="#1A1918" fill="#1A1918" style={{ marginLeft: 2 }} />
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.muteBtn}
-                    onPress={() => setIsMutedModal(!isMutedModal)}
-                    activeOpacity={0.7}
-                  >
-                    {isMutedModal ? (
-                      <VolumeX size={18} color="#FF4D4D" />
-                    ) : (
-                      <Volume2 size={18} color="#C5A059" />
-                    )}
-                  </TouchableOpacity>
-
-                  <Text style={styles.timerText}>0s / 0s</Text>
-                </View>
-
-                {/* RIGHT SIDE CONTROLS: REPLAY, FULLSCREEN */}
-                <View style={styles.rightControlsGroup}>
-                  <TouchableOpacity
-                    style={styles.replayBtn}
-                    onPress={() => setModalProgress(0)}
-                    activeOpacity={0.7}
-                  >
-                    <RotateCcw size={14} color="#FFFFFF" />
-                    <Text style={styles.replayText}>Replay</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.fullscreenBtn}
-                    onPress={() => setIsFullscreenModal(!isFullscreenModal)}
-                    activeOpacity={0.7}
-                  >
-                    {isFullscreenModal ? (
-                      <Minimize size={16} color="#C5A059" />
-                    ) : (
-                      <Maximize2 size={16} color="#FFFFFF" />
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        videoUrl={activeVideo?.video_url || ''}
+        posterUrl={
+          activeVideo?.video_url
+            ? thumbnailMap[activeVideo.video_url] || activeVideo.thumbnail_url
+            : activeVideo?.thumbnail_url
+        }
+        title={activeVideo?.title}
+        description={activeVideo?.description}
+      />
     </View>
   );
 };

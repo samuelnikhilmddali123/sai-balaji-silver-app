@@ -27,6 +27,7 @@ import {
   CRAFTSMANSHIP_VIDEOS,
   CraftsmanshipVideo,
 } from '../data/craftsmanshipVideos';
+import { AppVideoPlayer } from './AppVideoPlayer';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 44 - 12) / 2;
@@ -272,81 +273,15 @@ export const CraftsmanshipVideosSection: React.FC = () => {
 
               {/* VIDEO PLAYER DISPLAY CONTAINER */}
               <View style={styles.videoPlayerFrame}>
-                {Platform.OS === 'web' ? (
-                  // HTML5 Video Player for Web platform
-                  <video
-                    src={activeModalVideo.videoUrl}
-                    poster={activeModalVideo.thumbnail}
-                    controls
-                    autoPlay
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      borderRadius: 12,
-                    }}
+                {activeModalVideo && activeModalVideo.videoUrl && (
+                  <AppVideoPlayer
+                    videoUrl={activeModalVideo.videoUrl}
+                    posterUrl={activeModalVideo.thumbnail}
+                    isPlaying={isPlaying}
+                    isMuted={isMuted}
+                    showsControls={true}
+                    style={{ width: '100%', height: '100%' }}
                   />
-                ) : (
-                  // Interactive Video Preview Frame for Mobile
-                  <View style={styles.mobileVideoFrame}>
-                    <Image
-                      source={{ uri: activeModalVideo.thumbnail }}
-                      style={styles.mobileVideoPoster}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.mobileVideoOverlay} />
-
-                    {/* Center Play/Pause button */}
-                    <TouchableOpacity
-                      style={styles.modalPlayCircle}
-                      onPress={() => setIsPlaying(!isPlaying)}
-                      activeOpacity={0.8}
-                    >
-                      {isPlaying ? (
-                        <Pause size={28} color="#1A2332" />
-                      ) : (
-                        <Play size={28} color="#1A2332" style={{ marginLeft: 3 }} />
-                      )}
-                    </TouchableOpacity>
-
-                    {/* Bottom playback progress controls bar */}
-                    <View style={styles.playerControlsBar}>
-                      <TouchableOpacity
-                        onPress={() => setIsPlaying(!isPlaying)}
-                        style={styles.ctrlBtn}
-                      >
-                        {isPlaying ? (
-                          <Pause size={16} color="#FFFFFF" />
-                        ) : (
-                          <Play size={16} color="#FFFFFF" />
-                        )}
-                      </TouchableOpacity>
-
-                      <View style={styles.progressBarTrack}>
-                        <View
-                          style={[
-                            styles.progressBarFill,
-                            { width: `${progress * 100}%` },
-                          ]}
-                        />
-                      </View>
-
-                      <Text style={styles.timeText}>
-                        {activeModalVideo.duration || '0:45'}
-                      </Text>
-
-                      <TouchableOpacity
-                        onPress={() => setIsMuted(!isMuted)}
-                        style={styles.ctrlBtn}
-                      >
-                        {isMuted ? (
-                          <VolumeX size={16} color="#FFFFFF" />
-                        ) : (
-                          <Volume2 size={16} color="#FFFFFF" />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
                 )}
               </View>
 
