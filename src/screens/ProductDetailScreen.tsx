@@ -37,6 +37,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
+import { useSilverRate } from '../context/SilverRateContext';
 import { Product, ProductVariant } from '../types';
 import { catalogApi, silverRateApi, getFullImageUrl } from '../services/api';
 import { downloadAndSharePhoto, openWhatsAppDirect } from '../services/photoShare';
@@ -74,8 +75,6 @@ export const ProductDetailScreen: React.FC = () => {
   const { cart, addToCart, updateQuantity } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
-  // Live Silver Rate State
-  const [liveSilverRate, setLiveSilverRate] = useState<number>(244.4); // ₹/g
   const [isLiveRateLoading, setIsLiveRateLoading] = useState<boolean>(false);
 
   // Active Gallery Image
@@ -96,28 +95,9 @@ export const ProductDetailScreen: React.FC = () => {
   // Temporary Success state for Add To Bag button
   const [addSuccess, setAddSuccess] = useState<boolean>(false);
 
-  // Fetch product detail and live silver rate from backend
+  // Fetch product detail from backend
   useEffect(() => {
-    // 1. Fetch Live Silver Rate
-    setIsLiveRateLoading(true);
-    silverRateApi
-      .getLiveRate()
-      .then((res) => {
-        if (res && res.data) {
-          const rateVal = res.data.rate_per_gram || res.data.silver_rate || res.data.rate;
-          if (rateVal) setLiveSilverRate(Number(rateVal));
-        }
-      })
-      .catch(() => {})
-      .finally(() => setIsLiveRateLoading(false));
-
-    // Subscribe to SSE stream
-    const unsubscribeStream = silverRateApi.subscribeStream((data) => {
-      const rateVal = data?.rate_per_gram || data?.silver_rate || data?.rate;
-      if (rateVal) setLiveSilverRate(Number(rateVal));
-    });
-
-    // 2. Fetch full product details
+    // Fetch full product details
     const prodIdOrSlug = initialProduct?.id || initialProduct?.slug || route.params?.idOrSlug;
     if (prodIdOrSlug) {
       catalogApi
@@ -149,19 +129,24 @@ export const ProductDetailScreen: React.FC = () => {
     );
   }
 
+  const { rateData, calculateDynamicPrice } = useSilverRate();
   const inWishlist = isInWishlist(product.id);
 
-  // Purity Factor (0.925 for 925 Sterling Silver, 1.0 for 999 Fine Silver)
+  // Purity & Dynamic Price Calculation matching Web algorithm exactly
   const isFineSilver999 = product.silver_purity?.includes('999') || product.title?.includes('999');
-  const purityFactor = isFineSilver999 ? 1.0 : 0.925;
+  const purity = isFineSilver999 ? '999' : '925';
 
-  // Dynamic Price Calculations using requested formulas:
-  // Silver Value = Net Weight (g) * Purity Factor * Live Silver Rate (₹/g)
-  // Final Price = Silver Value + Calculated Making Charge
-  const currentWeight = activeVariant.weight_g;
-  const silverValue = currentWeight * purityFactor * liveSilverRate;
-  const makingCharge = activeVariant.making_charge || Math.round(currentWeight * 25);
-  const finalCalculatedPrice = Math.round((silverValue + makingCharge) * 100) / 100;
+  const breakdown = calculateDynamicPrice(
+    activeVariant.weight_g,
+    activeVariant.making_charge || Math.round(activeVariant.weight_g * 25),
+    activeVariant.making_type || 'fixed',
+    purity
+  );
+
+  const rawProdPrice = product.retail_price || product.price || (product as any).base_price;
+  const silverValue = breakdown.silverValue;
+  const makingCharge = breakdown.makingCharge;
+  const finalCalculatedPrice = rawProdPrice && Number(rawProdPrice) > 0 ? Number(rawProdPrice) : breakdown.finalPrice;
 
   const currentSku = `${product.sku || 'SBS-DT-003'}${activeVariant.sku_suffix || ''}`;
 

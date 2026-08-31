@@ -1,61 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { silverRateApi } from '../services/api';
-
-interface SilverRateData {
-  silver_999_rate?: number;
-  silver_999_kg?: number;
-  silver_925_rate?: number;
-  silver_925_kg?: number;
-  last_updated?: string;
-}
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useSilverRate } from '../context/SilverRateContext';
 
 export const SilverRateTicker: React.FC = () => {
-  const [rate, setRate] = useState<SilverRateData>({
-    silver_999_rate: 250.64,
-    silver_999_kg: 250640,
-    silver_925_rate: 231.84,
-    silver_925_kg: 231840,
-  });
-  const [isLive, setIsLive] = useState<boolean>(true);
+  const { rateData } = useSilverRate();
 
-  useEffect(() => {
-    // Initial fetch
-    silverRateApi
-      .getLiveRate()
-      .then((res) => {
-        if (res.data) setRate(res.data);
-      })
-      .catch(() => {});
-
-    // Subscribe to SSE / Polling Stream
-    const unsubscribe = silverRateApi.subscribeStream(
-      (data) => {
-        if (data && typeof data === 'object') {
-          setRate((prev) => ({ ...prev, ...data }));
-          setIsLive(true);
-        }
-      },
-      (err) => {
-        setIsLive(false);
-      }
-    );
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  const rate999g = rate.silver_999_rate ? rate.silver_999_rate.toFixed(2) : '250.64';
-  const rate925g = rate.silver_925_rate ? rate.silver_925_rate.toFixed(2) : '231.84';
-  const rate999kg = rate.silver_999_kg ? rate.silver_999_kg.toLocaleString('en-IN') : '2,50,640';
+  const rate999g = rateData.silver_999_rate ? rateData.silver_999_rate.toFixed(2) : '250.64';
+  const rate925g = rateData.silver_925_rate ? rateData.silver_925_rate.toFixed(2) : '231.84';
+  const rate999kg = rateData.silver_999_kg ? rateData.silver_999_kg.toLocaleString('en-IN') : '2,50,640';
 
   return (
     <View style={styles.container}>
       <View style={styles.innerRow}>
         <View style={styles.liveBadge}>
-          <View style={[styles.pulseDot, { backgroundColor: isLive ? '#34D399' : '#F59E0B' }]} />
-          <Text style={styles.liveBadgeText}>{isLive ? 'LIVE' : 'SPOT'}</Text>
+          <View style={[styles.pulseDot, { backgroundColor: rateData.isLive ? '#34D399' : '#F59E0B' }]} />
+          <Text style={styles.liveBadgeText}>{rateData.isLive ? 'LIVE (1s)' : 'SPOT'}</Text>
         </View>
 
         <Text style={styles.tickerText}>

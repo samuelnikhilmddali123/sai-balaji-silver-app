@@ -165,7 +165,7 @@ export const silverRateApi = {
     };
 
     fetchRate();
-    pollInterval = setInterval(fetchRate, 15000);
+    pollInterval = setInterval(fetchRate, 1000);
 
     return () => {
       isCancelled = true;

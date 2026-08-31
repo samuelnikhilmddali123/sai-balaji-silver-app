@@ -4,6 +4,7 @@ import { Heart } from 'lucide-react-native';
 import { Product } from '../types';
 import { getProductImageUrl } from '../services/api';
 import { useWishlist } from '../context/WishlistContext';
+import { useSilverRate } from '../context/SilverRateContext';
 
 interface ProductCardProps {
   product: Product;
@@ -13,6 +14,7 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, width }) => {
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { calculateCurrentPrice } = useSilverRate();
   const inWishlist = isInWishlist(product.id);
 
   const categoryName = product.subcategory
@@ -20,7 +22,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
     : (product.category?.name || product.category_slug || 'SILVER DINING & TABLEWARE').replace(/-/g, ' ').toUpperCase();
 
   const formattedSku = product.sku || `SBS-DT-${product.id.toString().padStart(3, '0')}`;
-  const priceVal = product.retail_price ? product.retail_price.toLocaleString('en-IN') : 'N/A';
+  
+  // Calculate live current price second-by-second tied to website silver rate
+  const displayPrice = calculateCurrentPrice(product);
+
+  const priceVal = displayPrice > 0
+    ? displayPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : (product.retail_price ? product.retail_price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A');
 
   return (
     <TouchableOpacity
