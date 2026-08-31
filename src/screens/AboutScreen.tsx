@@ -11,6 +11,7 @@ import {
   Modal,
   Dimensions,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -30,6 +31,8 @@ import {
   Film,
   Video,
   ChevronDown,
+  FileText,
+  ExternalLink,
 } from 'lucide-react-native';
 import { AppVideoPlayer } from '../components/AppVideoPlayer';
 import { VideoPlayerModal } from '../components/VideoPlayerModal';
@@ -492,6 +495,46 @@ export const AboutScreen: React.FC = () => {
               <ChevronDown size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* LEGAL & POLICIES SECTION */}
+        <View style={styles.legalSectionContainer}>
+          <Text style={styles.legalSectionTitle}>Legal & Policies</Text>
+          <Text style={styles.legalSectionSubtitle}>
+            Our commitments to customer privacy, security, and transparent business terms.
+          </Text>
+
+          <View style={styles.legalButtonsRow}>
+            <TouchableOpacity
+              style={styles.legalCard}
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/privacy-policy')}
+            >
+              <View style={styles.legalIconCircle}>
+                <ShieldCheck size={20} color="#C5A059" />
+              </View>
+              <View style={styles.legalTextContainer}>
+                <Text style={styles.legalCardTitle}>Privacy Policy</Text>
+                <Text style={styles.legalCardSub}>Data protection & privacy policy</Text>
+              </View>
+              <ExternalLink size={16} color="#C5A059" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.legalCard}
+              activeOpacity={0.85}
+              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/terms-and-conditions')}
+            >
+              <View style={styles.legalIconCircle}>
+                <FileText size={20} color="#C5A059" />
+              </View>
+              <View style={styles.legalTextContainer}>
+                <Text style={styles.legalCardTitle}>Terms & Conditions</Text>
+                <Text style={styles.legalCardSub}>Terms of service & customer agreement</Text>
+              </View>
+              <ExternalLink size={16} color="#C5A059" />
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -1143,6 +1186,70 @@ const styles = StyleSheet.create({
   },
   fullscreenBtn: {
     padding: 4,
+  },
+  legalSectionContainer: {
+    width: '100%',
+    marginTop: 36,
+    paddingTop: 28,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E0D8',
+    alignItems: 'center',
+  },
+  legalSectionTitle: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: '#202020',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  legalSectionSubtitle: {
+    fontSize: 12,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 20,
+    maxWidth: 320,
+  },
+  legalButtonsRow: {
+    width: '100%',
+    gap: 12,
+  },
+  legalCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E0D8',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  legalIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F8F6F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  legalTextContainer: {
+    flex: 1,
+  },
+  legalCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#202020',
+    marginBottom: 2,
+  },
+  legalCardSub: {
+    fontSize: 12,
+    color: '#888888',
   },
 });
 
