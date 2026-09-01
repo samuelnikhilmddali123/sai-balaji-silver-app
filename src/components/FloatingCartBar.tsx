@@ -10,15 +10,21 @@ export const FloatingCartBar: React.FC = () => {
   const navigation = useNavigation<any>();
   const { totalItemsCount, subtotal } = useCart();
 
-  // Safely get active route name across stack & tab navigators
+  // Safely get active route name across stack & tab navigators without crashing on cold launch
   const activeRouteName = useNavigationState((state) => {
-    if (!state) return '';
-    const currentRoute = state.routes[state.index];
-    if (currentRoute.state && currentRoute.state.routes) {
-      const nestedRoute = currentRoute.state.routes[currentRoute.state.index || 0];
-      return nestedRoute.name;
+    try {
+      if (!state || !state.routes || state.index === undefined) return '';
+      const currentRoute = state.routes[state.index];
+      if (!currentRoute) return '';
+      if (currentRoute.state && currentRoute.state.routes && Array.isArray(currentRoute.state.routes)) {
+        const nestedIndex = currentRoute.state.index ?? 0;
+        const nestedRoute = currentRoute.state.routes[nestedIndex];
+        return nestedRoute?.name || currentRoute.name || '';
+      }
+      return currentRoute.name || '';
+    } catch (e) {
+      return '';
     }
-    return currentRoute.name;
   });
 
   // Do not render if cart is empty, or if user is on Cart or ProductDetail screen

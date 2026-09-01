@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.saibalajisilverworks",
-      "versionCode": 202608311,
+      "versionCode": 202609011,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.webp",

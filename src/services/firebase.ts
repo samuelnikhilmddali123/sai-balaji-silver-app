@@ -10,22 +10,33 @@ const firebaseConfig = {
   appId: "1:692516345900:android:0303872ae00016359ed989",
 };
 
-// Initialize Firebase App
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-let authInstance;
+// Initialize Firebase App safely
+let app: any = null;
 try {
-  // @ts-ignore
-  const { getReactNativePersistence } = require('@firebase/auth');
-  if (getReactNativePersistence) {
-    authInstance = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-  } else {
-    authInstance = getAuth(app);
-  }
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 } catch (e) {
-  authInstance = getAuth(app);
+  console.log('Firebase initializeApp error:', e);
+}
+
+let authInstance: any = null;
+if (app) {
+  try {
+    // @ts-ignore
+    const { getReactNativePersistence } = require('firebase/auth');
+    if (getReactNativePersistence && AsyncStorage) {
+      authInstance = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } else {
+      authInstance = getAuth(app);
+    }
+  } catch (initAuthErr) {
+    try {
+      authInstance = getAuth(app);
+    } catch (getAuthErr) {
+      console.log('Firebase getAuth fallback error:', getAuthErr);
+    }
+  }
 }
 
 export const auth = authInstance;

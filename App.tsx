@@ -19,6 +19,10 @@ export default function App() {
     BodoniModa_700Bold,
   });
 
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
