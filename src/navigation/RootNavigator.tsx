@@ -39,7 +39,7 @@ const HeaderLeftMenu: React.FC = () => {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('Home')}
+        onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
         activeOpacity={0.88}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
       >
@@ -95,7 +95,7 @@ const HeaderRightIcons: React.FC = () => {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('Account')}
+        onPress={() => navigation.navigate('MainTabs', { screen: 'Account' })}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         activeOpacity={0.7}
       >

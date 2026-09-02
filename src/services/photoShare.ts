@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Alert, Linking } from 'react-native';
 import api from './api';
@@ -58,11 +58,10 @@ export const openWhatsAppDirect = async (whatsappMessage: string, imageUrl?: str
 export const downloadProductPhoto = async (imageUrl: string, title?: string): Promise<string | null> => {
   try {
     if (!imageUrl) return null;
-    const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory || '';
-    const localUri = `${cacheDir}product_${Date.now()}_${Math.floor(Math.random() * 1000)}.webp`;
-
-    const downloadRes = await FileSystem.downloadAsync(imageUrl, localUri);
-    return downloadRes.uri;
+    const filename = `product_${Date.now()}_${Math.floor(Math.random() * 1000)}.webp`;
+    const targetFile = new File(Paths.cache, filename);
+    const downloaded = await File.downloadFileAsync(imageUrl, targetFile);
+    return downloaded.uri;
   } catch (error) {
     console.error('Error downloading product photo:', error);
     return null;

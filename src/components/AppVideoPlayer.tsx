@@ -96,8 +96,7 @@ const NativeVideoPlayer: React.FC<AppVideoPlayerProps> = ({
         player={player}
         style={styles.nativeVideo}
         nativeControls={showsControls}
-        allowsFullscreen={false}
-        allowsPictureInPicture={false}
+        fullscreenOptions={{ enable: false }}
         contentFit={contentFit}
       />
     </View>

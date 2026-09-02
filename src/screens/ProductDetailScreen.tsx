@@ -224,7 +224,7 @@ export const ProductDetailScreen: React.FC = () => {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Sign In / Register',
-            onPress: () => navigation.navigate('Account'),
+            onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
           },
         ]
       );
@@ -235,7 +235,7 @@ export const ProductDetailScreen: React.FC = () => {
     let text = `*SAI BALAJI SILVERWORKS - LUXURY PRODUCT ENQUIRY*\n`;
     text += `------------------------------------\n\n`;
     text += `*Product*: ${product.title}\n`;
-    text += `• Selected Measurement / Size: ${activeVariant.name} (${activeVariant.weight_g}g)\n`;
+    text += `• Selected Measurement / Size: ${currentVariant.name} (${currentWeight}g)\n`;
     text += `• SKU: ${currentSku}\n`;
     text += `• Silver Purity: ${isFineSilver999 ? '999 Fine Silver' : '925 Sterling Silver'}\n`;
     text += `• Net Weight: ${currentWeight} grams\n`;
@@ -268,11 +268,11 @@ export const ProductDetailScreen: React.FC = () => {
       <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
         {/* TOP BREADCRUMB NAVIGATION BAR */}
         <View style={[styles.breadcrumbContainer, { paddingTop: 10 }]}>
-          <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+          <TouchableOpacity onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}>
             <Text style={styles.breadcrumbText}>Home</Text>
           </TouchableOpacity>
           <ChevronRight size={12} color="#898985" />
-          <TouchableOpacity onPress={() => navigation.navigate('Categories')}>
+          <TouchableOpacity onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}>
             <Text style={styles.breadcrumbText}>Retail</Text>
           </TouchableOpacity>
           <ChevronRight size={12} color="#898985" />

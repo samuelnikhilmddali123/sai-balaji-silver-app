@@ -131,7 +131,7 @@ export const CartScreen: React.FC = () => {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Sign In / Register',
-            onPress: () => navigation.navigate('Account'),
+            onPress: () => navigation.navigate('MainTabs', { screen: 'Account' }),
           },
         ]
       );
@@ -463,7 +463,7 @@ export const CartScreen: React.FC = () => {
         <Text style={styles.emptySub}>Explore our fine silver collections and add items to your cart.</Text>
         <TouchableOpacity
           style={styles.exploreBtn}
-          onPress={() => navigation.navigate('Categories')}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
           activeOpacity={0.8}
         >
           <Text style={styles.exploreBtnText}>EXPLORE SILVER COLLECTIONS</Text>
@@ -594,7 +594,7 @@ export const CartScreen: React.FC = () => {
               style={styles.continueBtn}
               onPress={() => {
                 setCheckoutSuccess(null);
-                navigation.navigate('Home');
+                navigation.navigate('MainTabs', { screen: 'Home' });
               }}
             >
               <Text style={styles.continueBtnText}>Continue Shopping</Text>

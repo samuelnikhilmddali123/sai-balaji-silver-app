@@ -94,7 +94,11 @@ export const ContactScreen: React.FC = () => {
 
                 <TouchableOpacity
                   style={styles.darkInfoRow}
-                  onPress={() => Linking.openURL('tel:+919492664870')}
+                  onPress={() => {
+                    Linking.openURL('tel:+919492664870').catch(() => {
+                      Alert.alert('Phone Call', 'Call: +91 9492664870');
+                    });
+                  }}
                   activeOpacity={0.7}
                 >
                   <Phone size={18} color="#B9A77A" />
@@ -103,7 +107,11 @@ export const ContactScreen: React.FC = () => {
 
                 <TouchableOpacity
                   style={styles.darkInfoRow}
-                  onPress={() => Linking.openURL('mailto:wholesale@saibalajisilverworks.com')}
+                  onPress={() => {
+                    Linking.openURL('mailto:wholesale@saibalajisilverworks.com').catch(() => {
+                      Alert.alert('Email', 'Email: wholesale@saibalajisilverworks.com');
+                    });
+                  }}
                   activeOpacity={0.7}
                 >
                   <Mail size={18} color="#B9A77A" />

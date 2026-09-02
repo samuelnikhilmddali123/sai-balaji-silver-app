@@ -508,7 +508,7 @@ export const AboutScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.legalCard}
               activeOpacity={0.85}
-              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/privacy-policy')}
+              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/privacy-policy').catch(() => {})}
             >
               <View style={styles.legalIconCircle}>
                 <ShieldCheck size={20} color="#C5A059" />
@@ -523,7 +523,7 @@ export const AboutScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.legalCard}
               activeOpacity={0.85}
-              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/terms-and-conditions')}
+              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/terms-and-conditions').catch(() => {})}
             >
               <View style={styles.legalIconCircle}>
                 <FileText size={20} color="#C5A059" />

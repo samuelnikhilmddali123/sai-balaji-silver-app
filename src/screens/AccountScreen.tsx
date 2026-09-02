@@ -627,7 +627,7 @@ export const AccountScreen: React.FC = () => {
                 </Text>
                 <TouchableOpacity
                   style={styles.startShoppingBtn}
-                  onPress={() => navigation.navigate('Categories')}
+                  onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.startShoppingBtnText}>EXPLORE COLLECTIONS</Text>
@@ -706,7 +706,7 @@ export const AccountScreen: React.FC = () => {
               ) : (
                 <TouchableOpacity
                   style={styles.startShoppingBtn}
-                  onPress={() => navigation.navigate('Categories')}
+                  onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.startShoppingBtnText}>START SHOPPING</Text>

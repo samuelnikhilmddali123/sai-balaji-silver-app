@@ -130,7 +130,7 @@ export const HomeScreen: React.FC = () => {
           {/* Primary CTA Button */}
           <TouchableOpacity
             style={styles.exploreBtn}
-            onPress={() => navigation.navigate('Categories')}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
             activeOpacity={0.88}
           >
             <Text style={styles.exploreBtnText}>EXPLORE COLLECTION</Text>
@@ -140,7 +140,7 @@ export const HomeScreen: React.FC = () => {
           {/* Secondary SHOP SILVER Button */}
           <TouchableOpacity
             style={styles.shopSilverBtn}
-            onPress={() => navigation.navigate('Categories')}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
             activeOpacity={0.88}
           >
             <Text style={styles.shopSilverBtnText}>SHOP SILVER</Text>
@@ -220,7 +220,7 @@ export const HomeScreen: React.FC = () => {
 
           <TouchableOpacity
             style={styles.viewCategoriesBtn}
-            onPress={() => navigation.navigate('Categories')}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
             activeOpacity={0.8}
           >
             <Text style={styles.viewCategoriesText}>VIEW CATEGORIES</Text>
@@ -232,7 +232,7 @@ export const HomeScreen: React.FC = () => {
               <TouchableOpacity
                 key={cat.id}
                 style={styles.collectionCard}
-                onPress={() => navigation.navigate('Categories', { categorySlug: cat.slug })}
+                onPress={() => navigation.navigate('MainTabs', { screen: 'Categories', params: { categorySlug: cat.slug } })}
                 activeOpacity={0.9}
               >
                 {/* Top Image Frame Container */}
@@ -280,7 +280,7 @@ export const HomeScreen: React.FC = () => {
 
           <TouchableOpacity
             style={styles.wholesaleBtn}
-            onPress={() => navigation.navigate('Wholesale')}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Wholesale' })}
             activeOpacity={0.88}
           >
             <Text style={styles.wholesaleBtnText}>ENQUIRE FOR WHOLESALE</Text>
@@ -345,7 +345,7 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.craftedBtnRow}>
             <TouchableOpacity
               style={styles.craftedExploreBtn}
-              onPress={() => navigation.navigate('Categories')}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
               activeOpacity={0.88}
             >
               <Text style={styles.craftedExploreBtnText}>EXPLORE COLLECTIONS →</Text>
