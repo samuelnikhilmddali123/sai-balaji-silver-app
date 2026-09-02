@@ -7,7 +7,7 @@ const firebaseConfig = {
   authDomain: "sai-balajji.firebaseapp.com",
   projectId: "sai-balajji",
   storageBucket: "sai-balajji.firebasestorage.app",
-  appId: "1:692516345900:android:0303872ae00016359ed989",
+  appId: "1:692516345900:android:efd682a9176f8c6f9ed989",
 };
 
 // Initialize Firebase App safely
