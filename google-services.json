@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "692516345900-release.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.saibalajisilverworks",
+            "certificate_hash": "6c48305320a2c0f49b08e402abd6843d7e4c195b"
+          }
+        },
+        {
           "client_id": "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com",
           "client_type": 3
         }

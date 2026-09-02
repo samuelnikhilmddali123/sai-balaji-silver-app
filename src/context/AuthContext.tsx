@@ -45,7 +45,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         GoogleSignin.configure({
           webClientId: WEB_CLIENT_ID,
-          offlineAccess: true,
+          scopes: ['profile', 'email'],
+          offlineAccess: false,
+          forceCodeForRefreshToken: false,
         });
       } catch (e) {
         console.error('Failed to configure GoogleSignin:', e);
