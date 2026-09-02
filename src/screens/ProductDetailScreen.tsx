@@ -115,10 +115,6 @@ export const ProductDetailScreen: React.FC = () => {
           console.log('Error fetching product detail:', err);
         });
     }
-
-    return () => {
-      if (unsubscribeStream) unsubscribeStream();
-    };
   }, [initialProduct]);
 
   if (!product) {
@@ -135,27 +131,55 @@ export const ProductDetailScreen: React.FC = () => {
   // Purity & Dynamic Price Calculation matching Web algorithm exactly
   const isFineSilver999 = product.silver_purity?.includes('999') || product.title?.includes('999');
   const purity = isFineSilver999 ? '999' : '925';
+  const liveSilverRate = rateData.live_silver_rate || 250.64;
+  const purityFactor = isFineSilver999 ? 1.0 : 0.925;
+
+  // Available variants from product or default standard
+  const availableVariants = useMemo<MeasurementVariant[]>(() => {
+    const rawVariants = product.variants || (product as any).sizes;
+    if (Array.isArray(rawVariants) && rawVariants.length > 0) {
+      return rawVariants.map((v: any, index: number) => {
+        const vWeight = parseFloat(String(v.weight_g || v.weight || product.weight_g || 250)) || 250;
+        const vName = v.size || v.name || v.label || (v.dimensions ? v.dimensions : `${vWeight}g`);
+        const vMaking = v.making_charge !== undefined ? parseFloat(String(v.making_charge)) : undefined;
+        return {
+          id: String(v.id || `v-${index}`),
+          name: vName,
+          weight_g: vWeight,
+          height_in: v.height || v.height_in,
+          diameter_in: v.diameter || v.diameter_in,
+          making_charge: vMaking,
+          making_type: v.making_type || 'fixed',
+          sku_suffix: v.sku ? `-${v.sku}` : `-${index + 1}`,
+        };
+      });
+    }
+    return DEFAULT_MEASUREMENT_VARIANTS;
+  }, [product]);
+
+  const currentVariant = activeVariant || availableVariants[0];
+  const currentWeight = currentVariant?.weight_g || product.weight_g || 250;
 
   const breakdown = calculateDynamicPrice(
-    activeVariant.weight_g,
-    activeVariant.making_charge || Math.round(activeVariant.weight_g * 25),
-    activeVariant.making_type || 'fixed',
+    currentWeight,
+    currentVariant.making_charge || Math.round(currentWeight * 25),
+    currentVariant.making_type || 'fixed',
     purity
   );
 
-  const rawProdPrice = product.retail_price || product.price || (product as any).base_price;
+  const rawProdPrice = product.retail_price || (product as any).price || (product as any).base_price;
   const silverValue = breakdown.silverValue;
   const makingCharge = breakdown.makingCharge;
   const finalCalculatedPrice = rawProdPrice && Number(rawProdPrice) > 0 ? Number(rawProdPrice) : breakdown.finalPrice;
 
-  const currentSku = `${product.sku || 'SBS-DT-003'}${activeVariant.sku_suffix || ''}`;
+  const currentSku = `${product.sku || 'SBS-DT-003'}${currentVariant.sku_suffix || ''}`;
 
   // Check if current variant is in cart
   const cartItem = cart.find(
     (item) =>
       item.product.id === product.id &&
-      (item.product.selected_variant?.size === activeVariant.name ||
-        item.product.selected_variant?.label === activeVariant.name)
+      (item.product.selected_variant?.size === currentVariant.name ||
+        item.product.selected_variant?.label === currentVariant.name)
   );
   const inCartQuantity = cartItem ? cartItem.quantity : 0;
 
@@ -389,7 +413,8 @@ export const ProductDetailScreen: React.FC = () => {
             <View style={styles.measurementHeader}>
               <Text style={styles.measurementTitle}>SELECT MEASUREMENT / SIZE:</Text>
               <Text style={styles.activeMeasurementSubtitle}>
-                {activeVariant.name} ({currentWeight}g)
+                {currentVariant.name}
+                {currentVariant.name.toLowerCase().includes('g') ? '' : ` (${currentWeight}g)`}
               </Text>
             </View>
 
@@ -398,26 +423,33 @@ export const ProductDetailScreen: React.FC = () => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.measurementScroll}
             >
-              {DEFAULT_MEASUREMENT_VARIANTS.map((variant) => {
-                const isSelected = activeVariant.id === variant.id;
+              {availableVariants.map((variant) => {
+                const isSelected = currentVariant.id === variant.id;
                 // Calculate variant price dynamically
                 const vWeight = variant.weight_g;
                 const vSilverVal = vWeight * purityFactor * liveSilverRate;
-                const vMaking = variant.making_charge || Math.round(vWeight * 25);
+                const vMaking = variant.making_charge !== undefined
+                  ? variant.making_charge
+                  : Math.round(vWeight * 25);
                 const vFinalPrice = Math.round(vSilverVal + vMaking);
+
+                const hasWeightInName = variant.name.toLowerCase().includes('g');
+                const subText = hasWeightInName
+                  ? `₹${vFinalPrice.toLocaleString('en-IN')}`
+                  : `₹${vFinalPrice.toLocaleString('en-IN')} (${vWeight}g)`;
 
                 return (
                   <TouchableOpacity
                     key={variant.id}
                     onPress={() => setActiveVariant(variant)}
                     style={[styles.measurementPill, isSelected && styles.activeMeasurementPill]}
-                    activeOpacity={0.8}
+                    activeOpacity={0.85}
                   >
                     <Text style={[styles.measurementPillTitle, isSelected && styles.activeMeasurementPillTitle]}>
                       {variant.name}
                     </Text>
                     <Text style={[styles.measurementPillSub, isSelected && styles.activeMeasurementPillSub]}>
-                      ₹{vFinalPrice.toLocaleString('en-IN')} ({vWeight}g)
+                      {subText}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -937,50 +969,61 @@ const styles = StyleSheet.create({
     color: '#202020',
   },
   measurementCard: {
+    backgroundColor: '#FAF8F5',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EAE6DF',
+    padding: 16,
     marginBottom: 20,
   },
   measurementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   measurementTitle: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '800',
     color: '#202020',
     letterSpacing: 0.8,
   },
   activeMeasurementSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#B9A77A',
   },
   measurementScroll: {
     gap: 10,
+    paddingVertical: 2,
   },
   measurementPill: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    backgroundColor: '#FAF8F5',
     borderWidth: 1,
     borderColor: '#EAE6DF',
-    minWidth: 120,
+    minWidth: 110,
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeMeasurementPill: {
     backgroundColor: '#1A1918',
-    borderColor: '#C5A059',
+    borderColor: '#1A1918',
     borderWidth: 1.5,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   measurementPillTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: '#202020',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    marginBottom: 3,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   activeMeasurementPillTitle: {
     color: '#FFFFFF',
@@ -988,10 +1031,12 @@ const styles = StyleSheet.create({
   measurementPillSub: {
     fontSize: 10.5,
     fontWeight: '600',
-    color: '#777777',
+    color: '#667085',
+    textAlign: 'center',
   },
   activeMeasurementPillSub: {
-    color: '#C5A059',
+    color: '#E2C069',
+    fontWeight: '700',
   },
   craftLeadText: {
     fontSize: 12.5,
