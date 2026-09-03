@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   MapPin,
   Phone,
@@ -22,9 +23,29 @@ import {
   Send,
   CheckCircle2,
 } from 'lucide-react-native';
+import { getAdminPhoneNumber, DEFAULT_ADMIN_PHONE } from '../services/photoShare';
+import { PhoneInputWithCountry } from '../components/PhoneInputWithCountry';
 
 export const ContactScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const [adminPhone, setAdminPhone] = useState<string>(DEFAULT_ADMIN_PHONE);
+
+  const refreshPhone = useCallback(async () => {
+    try {
+      const p = await getAdminPhoneNumber();
+      if (p) setAdminPhone(p);
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    refreshPhone();
+  }, [refreshPhone]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshPhone();
+    }, [refreshPhone])
+  );
 
   // Contact Form State
   const [submitted, setSubmitted] = useState(false);
@@ -48,6 +69,10 @@ export const ContactScreen: React.FC = () => {
       setSubmitted(true);
     }, 800);
   };
+
+  const displayPhone = adminPhone.startsWith('91') && adminPhone.length === 12
+    ? `+91 ${adminPhone.slice(2, 7)} ${adminPhone.slice(7)}`
+    : `+${adminPhone}`;
 
   return (
     <View style={styles.container}>
@@ -95,14 +120,14 @@ export const ContactScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.darkInfoRow}
                   onPress={() => {
-                    Linking.openURL('tel:+919492664870').catch(() => {
-                      Alert.alert('Phone Call', 'Call: +91 9492664870');
+                    Linking.openURL(`tel:+${adminPhone}`).catch(() => {
+                      Alert.alert('Phone Call', `Call: +${adminPhone}`);
                     });
                   }}
                   activeOpacity={0.7}
                 >
                   <Phone size={18} color="#B9A77A" />
-                  <Text style={styles.darkInfoText}>+91 9492664870</Text>
+                  <Text style={styles.darkInfoText}>{displayPhone}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -181,13 +206,11 @@ export const ContactScreen: React.FC = () => {
 
                   <View>
                     <Text style={styles.fieldLabel}>PHONE NUMBER</Text>
-                    <TextInput
-                      style={styles.fieldInput}
-                      placeholder="+91 98765 43210"
-                      placeholderTextColor="#999"
-                      keyboardType="phone-pad"
+                    <PhoneInputWithCountry
                       value={formData.phone}
                       onChangeText={(t) => setFormData({ ...formData, phone: t })}
+                      placeholder="98765 43210"
+                      containerStyle={{ backgroundColor: '#FAF9F5' }}
                     />
                   </View>
 

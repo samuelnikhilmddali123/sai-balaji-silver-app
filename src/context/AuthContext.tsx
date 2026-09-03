@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { authApi } from '../services/api';
 import { auth, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut, WEB_CLIENT_ID } from '../services/firebase';
+import { setAdminPhoneNumber } from '../services/photoShare';
 import { User } from '../types';
 
 let GoogleSignin: any = null;
@@ -27,6 +28,15 @@ interface AuthContextType {
     phone?: string;
     company_name?: string;
     gstin?: string;
+    address_line1?: string;
+    address_line2?: string;
+    street_address?: string;
+    street?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
   }) => Promise<boolean>;
   updateUser: (updatedUser: User) => Promise<void>;
   logout: () => Promise<void>;
@@ -40,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+  const configureGoogleSignIn = () => {
     if (GoogleSignin) {
       try {
         GoogleSignin.configure({
@@ -53,6 +63,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Failed to configure GoogleSignin:', e);
       }
     }
+  };
+
+  useEffect(() => {
+    configureGoogleSignIn();
   }, []);
 
   const fetchAndMergeUserDetails = async (initialUser: User): Promise<User> => {
@@ -122,11 +136,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             pincode: pincodeVal,
           };
           await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
+
+          if ((mergedUser.role === 'ADMIN' || mergedUser.email?.toLowerCase().includes('admin')) && mergedUser.phone) {
+            setAdminPhoneNumber(mergedUser.phone);
+          }
+
           return mergedUser;
         }
       }
     } catch (e) {
       console.error('Error fetching user profile in AuthContext:', e);
+    }
+    if ((initialUser.role === 'ADMIN' || initialUser.email?.toLowerCase().includes('admin')) && initialUser.phone) {
+      setAdminPhoneNumber(initialUser.phone);
     }
     return initialUser;
   };
@@ -214,10 +236,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!GoogleSignin) {
         throw new Error('Native Google Sign-In is available in the installed app build (not in standard Expo Go).');
       }
+
+      // Ensure GoogleSignin is configured before calling signIn
+      configureGoogleSignIn();
+
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
       // Clear any cached Google session before sign-in so Google Play Services
-      // always displays the account chooser dialog (allowing user to select Account A, B, etc.)
+      // always displays the account chooser dialog
       try {
         await GoogleSignin.signOut();
       } catch (signOutErr) {
@@ -239,19 +265,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Obtain Firebase ID Token
       const firebaseToken = await firebaseUser.getIdToken();
 
-      // 3. Authenticate with existing Backend API (POST /auth/google)
+      // 3. Authenticate with backend API (POST /auth/google)
       let res;
       try {
-        res = await authApi.googleAuth({ idToken: firebaseToken });
+        res = await authApi.googleAuth({
+          idToken: firebaseToken,
+          email: firebaseUser.email || '',
+          name: firebaseUser.displayName || 'Google User',
+          full_name: firebaseUser.displayName || 'Google User',
+          photo_url: firebaseUser.photoURL || '',
+          firebase_uid: firebaseUser.uid,
+        });
       } catch (backendErr: any) {
         try {
-          res = await api.post('/auth/google-login', {
-            firebase_token: firebaseToken,
-            id_token: firebaseToken,
+          res = await api.post('/auth/google', {
             idToken: firebaseToken,
+            id_token: firebaseToken,
+            firebase_token: firebaseToken,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || 'Google User',
+            full_name: firebaseUser.displayName || 'Google User',
+            photo_url: firebaseUser.photoURL || '',
+            firebase_uid: firebaseUser.uid,
           });
         } catch (err2) {
-          res = { data: { access_token: firebaseToken, user: { email: firebaseUser.email, full_name: firebaseUser.displayName } } };
+          try {
+            res = await api.post('/auth/google-login', {
+              firebase_token: firebaseToken,
+              id_token: firebaseToken,
+              idToken: firebaseToken,
+              email: firebaseUser.email || '',
+              name: firebaseUser.displayName || 'Google User',
+              full_name: firebaseUser.displayName || 'Google User',
+            });
+          } catch (err3) {
+            res = {
+              data: {
+                access_token: firebaseToken,
+                user: {
+                  email: firebaseUser.email,
+                  full_name: firebaseUser.displayName || 'Google User',
+                  firebase_uid: firebaseUser.uid,
+                  photo_url: firebaseUser.photoURL || '',
+                },
+              },
+            };
+          }
         }
       }
 
@@ -284,6 +343,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new Error('Google Play Services is not available or needs to be updated on this device.');
+      } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
+        console.error(
+          '[Google Sign-In Configuration] DEVELOPER_ERROR (code 10). Verify that the SHA-1 signing fingerprint is registered for package com.saibalajisilverworks.'
+        );
       }
       console.error('Login with Google error:', error?.response?.data || error.message);
       throw new Error(error?.response?.data?.detail || error.message || 'Google Sign-In failed');
@@ -297,33 +360,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phone?: string;
     company_name?: string;
     gstin?: string;
+    address_line1?: string;
+    address_line2?: string;
+    street_address?: string;
+    street?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
   }): Promise<boolean> => {
     try {
-      const res = await authApi.register({
+      const streetCombined =
+        payload.street_address ||
+        (payload.address_line1
+          ? payload.address_line2
+            ? `${payload.address_line1.trim()}, ${payload.address_line2.trim()}`
+            : payload.address_line1.trim()
+          : payload.street || payload.address || '');
+
+      const formattedAddress = [
+        streetCombined,
+        payload.city,
+        payload.state ? `${payload.state}${payload.pincode ? ` - ${payload.pincode}` : ''}` : payload.pincode,
+        payload.country,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const fullPayload = {
+        ...payload,
         name: payload.full_name,
         full_name: payload.full_name,
         email: payload.email,
         password: payload.password,
-        phone: payload.phone,
-        company_name: payload.company_name,
-        gstin: payload.gstin,
-      }).catch(() => api.post('/auth/register', payload));
+        phone: payload.phone || '',
+        company_name: payload.company_name || '',
+        gstin: payload.gstin || '',
+        street_address: streetCombined,
+        street: streetCombined,
+        address_line1: payload.address_line1 || '',
+        address_line2: payload.address_line2 || '',
+        address: formattedAddress,
+        city: payload.city || '',
+        state: payload.state || '',
+        pincode: payload.pincode || '',
+        country: payload.country || 'India',
+      };
+
+      const res = await authApi.register(fullPayload).catch(() => api.post('/auth/register', fullPayload));
       const token = res.data.access_token || res.data.token;
       const registeredUser = res.data.user || res.data.profile;
       if (token) {
         setUserToken(token);
         await AsyncStorage.setItem('userToken', token);
         const fullUser = await fetchAndMergeUserDetails(
-          registeredUser || ({ email: payload.email, full_name: payload.full_name } as User)
+          registeredUser ||
+            ({
+              ...fullPayload,
+              id: Date.now(),
+              role: 'CUSTOMER',
+              is_active: true,
+            } as User)
         );
         setUser(fullUser);
         await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
+
+        const addressData = {
+          fullName: fullPayload.full_name,
+          phone: fullPayload.phone,
+          street: streetCombined,
+          city: fullPayload.city,
+          state: fullPayload.state,
+          pincode: fullPayload.pincode,
+        };
+        await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
+
         return true;
       }
       return false;
     } catch (error: any) {
       console.error('Registration error:', error?.response?.data || error.message);
       if (error?.message === 'Network Error' || error?.code === 'ERR_NETWORK' || !error.response) {
+        const streetCombined =
+          payload.street_address ||
+          (payload.address_line1
+            ? payload.address_line2
+              ? `${payload.address_line1.trim()}, ${payload.address_line2.trim()}`
+              : payload.address_line1.trim()
+            : payload.street || payload.address || '');
+
         const localToken = `sbs_local_token_${Date.now()}`;
         const localUser: User = {
           id: Date.now(),
@@ -332,6 +458,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone: payload.phone || '',
           company_name: payload.company_name || '',
           gstin: payload.gstin || '',
+          street_address: streetCombined,
+          street: streetCombined,
+          address_line1: payload.address_line1 || '',
+          address_line2: payload.address_line2 || '',
+          city: payload.city || '',
+          state: payload.state || '',
+          pincode: payload.pincode || '',
+          country: payload.country || 'India',
           role: 'CUSTOMER',
           is_active: true,
         };
@@ -339,6 +473,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(localUser);
         await AsyncStorage.setItem('userToken', localToken);
         await AsyncStorage.setItem('userData', JSON.stringify(localUser));
+
+        const addressData = {
+          fullName: localUser.full_name,
+          phone: localUser.phone || '',
+          street: streetCombined,
+          city: localUser.city || '',
+          state: localUser.state || '',
+          pincode: localUser.pincode || '',
+        };
+        await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
+
         return true;
       }
       throw new Error(error?.response?.data?.detail || error?.response?.data?.message || 'Registration failed');
@@ -358,6 +503,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pincode: updatedUser.pincode || '',
     };
     await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
+    if ((updatedUser.role === 'ADMIN' || updatedUser.email?.toLowerCase().includes('admin')) && updatedUser.phone) {
+      setAdminPhoneNumber(updatedUser.phone);
+    }
     try {
       await authApi.updateMe({
         name: updatedUser.full_name,

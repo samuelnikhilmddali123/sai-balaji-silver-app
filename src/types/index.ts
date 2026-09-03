@@ -66,11 +66,14 @@ export interface User {
   company_name?: string;
   gstin?: string;
   address?: string;
+  address_line1?: string;
+  address_line2?: string;
   street_address?: string;
   street?: string;
   city?: string;
   state?: string;
   pincode?: string;
+  country?: string;
   role: 'CUSTOMER' | 'ADMIN';
   is_active: boolean;
   created_at?: string;

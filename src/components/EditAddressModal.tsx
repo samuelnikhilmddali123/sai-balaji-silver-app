@@ -14,6 +14,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { MapPin, User, Phone, ArrowRight, ChevronDown } from 'lucide-react-native';
+import { PhoneInputWithCountry } from './PhoneInputWithCountry';
 
 export interface AddressData {
   fullName: string;
@@ -157,21 +158,12 @@ export const EditAddressModal: React.FC<EditAddressModalProps> = ({
 
                 {/* MOBILE / PHONE NUMBER */}
                 <Text style={styles.fieldLabel}>MOBILE / PHONE NUMBER *</Text>
-                <View style={styles.phoneInputRow}>
-                  <View style={styles.countryPickerBadge}>
-                    <Text style={styles.flagEmoji}>🇮🇳</Text>
-                    <Text style={styles.countryCodeText}>+91</Text>
-                    <ChevronDown size={14} color="#666666" />
-                  </View>
-                  <TextInput
-                    style={styles.phoneInput}
-                    placeholder="98765 43210"
-                    placeholderTextColor="#999999"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
+                <PhoneInputWithCountry
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="98765 43210"
+                  containerStyle={{ marginBottom: 12 }}
+                />
 
                 {/* STREET ADDRESS / DOOR NO. */}
                 <Text style={styles.fieldLabel}>STREET ADDRESS / DOOR NO. *</Text>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -9,16 +9,30 @@ import {
   Platform,
   SafeAreaView,
   StatusBar,
+  Linking,
+  Alert,
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMenu } from '../context/MenuContext';
+import { getAdminPhoneNumber, DEFAULT_ADMIN_PHONE } from '../services/photoShare';
 
 export const NavigationMenuModal: React.FC = () => {
   const { isMenuOpen, closeMenu } = useMenu();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const [adminPhone, setAdminPhone] = useState<string>(DEFAULT_ADMIN_PHONE);
+
+  useEffect(() => {
+    if (isMenuOpen) {
+      getAdminPhoneNumber(true)
+        .then((p) => {
+          if (p) setAdminPhone(p);
+        })
+        .catch(() => {});
+    }
+  }, [isMenuOpen]);
 
   const handleNavigate = (screenName: string) => {
     closeMenu();
@@ -120,10 +134,22 @@ export const NavigationMenuModal: React.FC = () => {
         {/* BOTTOM FOOTER */}
         <View style={styles.footer}>
           <View style={styles.divider} />
-          <View style={styles.footerContent}>
-            <Text style={styles.footerMainText}>+91 9492664870 • Tenali Atelier</Text>
+          <TouchableOpacity
+            style={styles.footerContent}
+            onPress={() => {
+              Linking.openURL(`tel:+${adminPhone}`).catch(() => {
+                Alert.alert('Phone Call', `Call: +${adminPhone}`);
+              });
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.footerMainText}>
+              {adminPhone.startsWith('91') && adminPhone.length === 12
+                ? `+91 ${adminPhone.slice(2, 7)} ${adminPhone.slice(7)}`
+                : `+${adminPhone}`} • Tenali Atelier
+            </Text>
             <Text style={styles.footerSubText}>100% NABL Hallmarked Silver</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>

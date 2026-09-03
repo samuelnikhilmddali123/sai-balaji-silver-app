@@ -32,6 +32,9 @@ import { User as UserIcon,
   Lock,
   ArrowRight,
   Phone,
+  Home,
+  Building2,
+  Globe,
 } from 'lucide-react-native';
 import { Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +42,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { EditAddressModal, AddressData } from '../components/EditAddressModal';
+import { PhoneInputWithCountry } from '../components/PhoneInputWithCountry';
 import api, { orderApi, wholesaleApi, getProductImageUrl } from '../services/api';
 import { Order } from '../types';
 
@@ -80,8 +84,16 @@ export const AccountScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
   const [companyName, setCompanyName] = useState('');
   const [gstin, setGstin] = useState('');
+  const [addressLine1, setAddressLine1] = useState('');
+  const [addressLine2, setAddressLine2] = useState('');
+  const [city, setCity] = useState('');
+  const [stateName, setStateName] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [country, setCountry] = useState('India');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Logged In Tab State: 'retail' vs 'wholesale' vs 'wishlist'
   const [historyTab, setHistoryTab] = useState<'retail' | 'wholesale' | 'wishlist'>('retail');
@@ -112,13 +124,21 @@ export const AccountScreen: React.FC = () => {
         setOrdersLoading(true);
       }
 
-      // 0. Load locally saved orders from AsyncStorage
+      // 0. Load locally saved orders from AsyncStorage strictly for the CURRENT user
       let localSavedOrders: Order[] = [];
       try {
         const localSavedStr = await AsyncStorage.getItem('user_saved_orders');
         if (localSavedStr) {
           const parsed = JSON.parse(localSavedStr);
-          if (Array.isArray(parsed)) localSavedOrders = parsed;
+          if (Array.isArray(parsed)) {
+            localSavedOrders = parsed.filter(
+              (o: any) =>
+                (user.id && (o.user_id === user.id || o.userId === user.id)) ||
+                (user.email &&
+                  (o.customer_email?.toLowerCase() === user.email.toLowerCase() ||
+                    o.email?.toLowerCase() === user.email.toLowerCase()))
+            );
+          }
         }
       } catch (e) {}
 
@@ -157,26 +177,43 @@ export const AccountScreen: React.FC = () => {
           ? data
           : data.orders || data.data || data.value || data.items || data.requests || data.result || (data.id ? [data] : []);
         if (Array.isArray(rawOrders)) {
-          retailList = rawOrders.map((o: any) => ({
-            ...o,
-            order_number: o.order_number || o.id || `SBS-ORD-${o.id || Date.now()}`,
-            order_type: (o.order_type || (o.is_wholesale ? 'wholesale' : 'retail')) as 'wholesale' | 'retail',
-            items: (o.items || o.products || []).map((it: any) => {
-              const pRef = pMap[it.product_id] || {};
-              const resolvedImg = it.featured_image || it.image_url || it.image || pRef.featured_image || (pRef.images && pRef.images[0]) || pRef.image_url || '';
-              const resolvedSku = it.product_sku || it.sku || pRef.sku || (it.product_id ? `SBS-DT-00${it.product_id}` : '');
-              const resolvedSize = it.size || it.measurement || (it.variant ? (it.variant.size || it.variant.measurement) : '') || pRef.size || pRef.measurement || (pRef.height_in ? `Height: ${pRef.height_in} in, Diameter: ${pRef.diameter_in} in` : '') || '';
-              return {
-                ...it,
-                product_sku: resolvedSku,
-                sku: resolvedSku,
-                size: resolvedSize,
-                measurement: resolvedSize,
-                featured_image: resolvedImg,
-                image_url: resolvedImg,
-              };
-            }),
-          }));
+          retailList = rawOrders
+            .filter((o: any) => {
+              if (user.id && (o.user_id === user.id || o.userId === user.id)) return true;
+              if (
+                user.email &&
+                (o.customer_email?.toLowerCase() === user.email.toLowerCase() ||
+                  o.email?.toLowerCase() === user.email.toLowerCase())
+              )
+                return true;
+              if (
+                user.phone &&
+                o.customer_phone &&
+                o.customer_phone.replace(/\D/g, '') === user.phone.replace(/\D/g, '')
+              )
+                return true;
+              return false;
+            })
+            .map((o: any) => ({
+              ...o,
+              order_number: o.order_number || o.id || `SBS-ORD-${o.id || Date.now()}`,
+              order_type: (o.order_type || (o.is_wholesale ? 'wholesale' : 'retail')) as 'wholesale' | 'retail',
+              items: (o.items || o.products || []).map((it: any) => {
+                const pRef = pMap[it.product_id] || {};
+                const resolvedImg = it.featured_image || it.image_url || it.image || pRef.featured_image || (pRef.images && pRef.images[0]) || pRef.image_url || '';
+                const resolvedSku = it.product_sku || it.sku || pRef.sku || (it.product_id ? `SBS-DT-00${it.product_id}` : '');
+                const resolvedSize = it.size || it.measurement || (it.variant ? (it.variant.size || it.variant.measurement) : '') || pRef.size || pRef.measurement || (pRef.height_in ? `Height: ${pRef.height_in} in, Diameter: ${pRef.diameter_in} in` : '') || '';
+                return {
+                  ...it,
+                  product_sku: resolvedSku,
+                  sku: resolvedSku,
+                  size: resolvedSize,
+                  measurement: resolvedSize,
+                  featured_image: resolvedImg,
+                  image_url: resolvedImg,
+                };
+              }),
+            }));
         }
       }
 
@@ -187,112 +224,63 @@ export const AccountScreen: React.FC = () => {
           ? data
           : data.requests || data.quotes || data.data || data.value || data.items || data.result || data.quotations || (data.id ? [data] : []);
         if (Array.isArray(rawQuotes)) {
-          wholesaleList = rawQuotes.map((q: any) => ({
-            id: q.id,
-            order_number: q.request_number || q.quote_id || q.order_number || `SBS-QT-${q.id}`,
-            user_id: q.user_id,
-            customer_name: q.contact_person || q.company_name || q.customer_name || 'Wholesale Client',
-            customer_email: q.email || q.customer_email || '',
-            customer_phone: q.phone || q.customer_phone || '',
-            shipping_address: q.address || q.shipping_address || 'N/A',
-            items: (q.items || q.products || []).map((it: any) => {
-              const pRef = pMap[it.product_id] || {};
-              const resolvedImg = it.featured_image || it.image_url || it.image || pRef.featured_image || (pRef.images && pRef.images[0]) || pRef.image_url || '';
-              const resolvedSku = it.product_sku || it.sku || pRef.sku || (it.product_id ? `SBS-DT-00${it.product_id}` : '');
-              const resolvedSize = it.size || it.measurement || (it.variant ? (it.variant.size || it.variant.measurement) : '') || pRef.size || pRef.measurement || (pRef.height_in ? `Height: ${pRef.height_in} in, Diameter: ${pRef.diameter_in} in` : '') || '';
-              const resolvedWeight = it.weight_g || it.weight || pRef.weight_g || 0;
+          wholesaleList = rawQuotes
+            .filter((q: any) => {
+              if (user.id && (q.user_id === user.id || q.userId === user.id)) return true;
+              if (
+                user.email &&
+                (q.email?.toLowerCase() === user.email.toLowerCase() ||
+                  q.customer_email?.toLowerCase() === user.email.toLowerCase())
+              )
+                return true;
+              if (
+                user.phone &&
+                q.phone &&
+                q.phone.replace(/\D/g, '') === user.phone.replace(/\D/g, '')
+              )
+                return true;
+              return false;
+            })
+            .map((q: any) => ({
+              id: q.id,
+              order_number: q.request_number || q.quote_id || q.order_number || `SBS-QT-${q.id}`,
+              user_id: q.user_id,
+              customer_name: q.contact_person || q.company_name || q.customer_name || user.full_name || 'Wholesale Client',
+              customer_email: q.email || q.customer_email || user.email || '',
+              customer_phone: q.phone || q.customer_phone || user.phone || '',
+              shipping_address: q.address || q.shipping_address || 'N/A',
+              items: (q.items || q.products || []).map((it: any) => {
+                const pRef = pMap[it.product_id] || {};
+                const resolvedImg = it.featured_image || it.image_url || it.image || pRef.featured_image || (pRef.images && pRef.images[0]) || pRef.image_url || '';
+                const resolvedSku = it.product_sku || it.sku || pRef.sku || (it.product_id ? `SBS-DT-00${it.product_id}` : '');
+                const resolvedSize = it.size || it.measurement || (it.variant ? (it.variant.size || it.variant.measurement) : '') || pRef.size || pRef.measurement || (pRef.height_in ? `Height: ${pRef.height_in} in, Diameter: ${pRef.diameter_in} in` : '') || '';
+                const resolvedWeight = it.weight_g || it.weight || pRef.weight_g || 0;
 
-              return {
-                product_id: it.product_id || 0,
-                title: it.title || it.product_name || pRef.title || 'Silver Wholesale Article',
-                product_name: it.title || it.product_name || pRef.title || 'Silver Wholesale Article',
-                product_sku: resolvedSku,
-                sku: resolvedSku,
-                size: resolvedSize,
-                measurement: resolvedSize,
-                weight_g: resolvedWeight,
-                quantity: it.quantity || 1,
-                unit_price: it.unit_price || it.price || 0,
-                subtotal: it.subtotal || ((it.unit_price || it.price || 0) * (it.quantity || 1)),
-                featured_image: resolvedImg,
-                image_url: resolvedImg,
-              };
-            }),
-            grand_total: q.estimated_total || q.grand_total || (q.items || []).reduce((acc: number, item: any) => acc + (item.unit_price || 0) * (item.quantity || 1), 0),
-            status: q.status || 'QUOTE_ISSUED',
-            created_at: q.created_at || new Date().toISOString(),
-            order_type: 'wholesale' as const,
-          }));
+                return {
+                  product_id: it.product_id || 0,
+                  title: it.title || it.product_name || pRef.title || 'Silver Wholesale Article',
+                  product_name: it.title || it.product_name || pRef.title || 'Silver Wholesale Article',
+                  product_sku: resolvedSku,
+                  sku: resolvedSku,
+                  size: resolvedSize,
+                  measurement: resolvedSize,
+                  weight_g: resolvedWeight,
+                  quantity: it.quantity || 1,
+                  unit_price: it.unit_price || it.price || 0,
+                  subtotal: it.subtotal || ((it.unit_price || it.price || 0) * (it.quantity || 1)),
+                  featured_image: resolvedImg,
+                  image_url: resolvedImg,
+                };
+              }),
+              grand_total: q.estimated_total || q.grand_total || (q.items || []).reduce((acc: number, item: any) => acc + (item.unit_price || 0) * (item.quantity || 1), 0),
+              status: q.status || 'QUOTE_ISSUED',
+              created_at: q.created_at || new Date().toISOString(),
+              order_type: 'wholesale' as const,
+            }));
         }
       }
 
       const combined: Order[] = [...retailList, ...wholesaleList, ...localSavedOrders];
-
-      // Fallback demo orders matching user's real orders from Image 1 & 2
-      if (combined.length === 0) {
-        combined.push(
-          {
-            id: 'SBS-QT-477108',
-            order_number: 'SBS-QT-477108',
-            customer_name: user.full_name || 'samuelnikhil147',
-            customer_email: user.email || 'samuelnikhil147@gmail.com',
-            customer_phone: user.phone || 'N/A',
-            shipping_address: user.address || 'Tenali Main Workshop, Andhra Pradesh - 522201',
-            items: [
-              {
-                product_id: 3,
-                title: 'Antique Gold Floral Engraved Decorative Urli',
-                product_name: 'Antique Gold Floral Engraved Decorative Urli',
-                product_sku: 'SBS-DT-003-2IN',
-                sku: 'SBS-DT-003-2IN',
-                size: 'Height: 3.5 in, Diameter: 4.5 in',
-                measurement: 'Height: 3.5 in, Diameter: 4.5 in',
-                weight_g: 250,
-                quantity: 5,
-                unit_price: 68860,
-                price: 68860,
-                subtotal: 344300,
-                featured_image: '/public/Saibalaji products S/Antique Gold Floral Engraved Decorative Urli (1).webp',
-                image_url: '/public/Saibalaji products S/Antique Gold Floral Engraved Decorative Urli (1).webp',
-              },
-            ],
-            grand_total: 344300,
-            status: 'QUOTE_ISSUED',
-            created_at: new Date('2026-08-30T00:00:00Z').toISOString(),
-            order_type: 'wholesale',
-          },
-          {
-            id: 'SBS-ORD-538364',
-            order_number: 'SBS-ORD-538364',
-            customer_name: user.full_name || 'samuelnikhil147',
-            customer_email: user.email || 'samuelnikhil147@gmail.com',
-            customer_phone: user.phone || 'N/A',
-            shipping_address: user.address || 'Tenali Main Workshop, Andhra Pradesh - 522201',
-            items: [
-              {
-                product_id: 3,
-                title: 'Antique Gold Floral Engraved Decorative Urli',
-                product_name: 'Antique Gold Floral Engraved Decorative Urli',
-                product_sku: 'SBS-DT-003-2IN',
-                sku: 'SBS-DT-003-2IN',
-                size: 'Height: 3.5 in, Diameter: 4.5 in',
-                measurement: 'Height: 3.5 in, Diameter: 4.5 in',
-                weight_g: 250,
-                quantity: 1,
-                unit_price: 62767.5,
-                price: 62767.5,
-                subtotal: 62767.5,
-                featured_image: '/public/Saibalaji products S/Antique Gold Floral Engraved Decorative Urli (1).webp',
-                image_url: '/public/Saibalaji products S/Antique Gold Floral Engraved Decorative Urli (1).webp',
-              },
-            ],
-            grand_total: 64650.5,
-            status: 'ORDER PLACED',
-            created_at: new Date('2026-08-29T00:00:00Z').toISOString(),
-            order_type: 'retail',
-          }
-        );
-      }
 
       // Deduplicate orders
       const seen = new Set();
@@ -381,10 +369,23 @@ export const AccountScreen: React.FC = () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    if (!cleanEmail || !cleanPassword) {
-      Alert.alert('Required Fields', 'Please enter email and password');
+    const newErrors: Record<string, string> = {};
+    if (!cleanEmail) {
+      newErrors.email = 'Email address is required';
+    } else if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    if (!cleanPassword) {
+      newErrors.password = 'Password is required';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
+      Alert.alert('Required Fields', 'Please enter a valid email and password.');
       return;
     }
+
+    setFormErrors({});
     setLoading(true);
     try {
       await login(cleanEmail, cleanPassword);
@@ -398,20 +399,96 @@ export const AccountScreen: React.FC = () => {
   const handleRegister = async () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
+    const cleanFullName = fullName.trim();
+    const cleanPhone = phone.trim();
+    const cleanAddress1 = addressLine1.trim();
+    const cleanAddress2 = addressLine2.trim();
+    const cleanCity = city.trim();
+    const cleanState = stateName.trim();
+    const cleanPincode = pincode.trim();
+    const cleanCountry = country.trim() || 'India';
 
-    if (!cleanEmail || !cleanPassword || !fullName.trim()) {
-      Alert.alert('Required Fields', 'Please fill in Email, Password, and Full Name');
+    const newErrors: Record<string, string> = {};
+
+    if (!cleanEmail) {
+      newErrors.email = 'Email address is required';
+    } else if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!cleanPassword) {
+      newErrors.password = 'Password is required';
+    } else if (cleanPassword.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    if (!cleanFullName) {
+      newErrors.fullName = 'Full Name is required';
+    }
+
+    if (!cleanPhone) {
+      newErrors.phone = 'Phone number is required';
+    } else if (cleanPhone.replace(/\D/g, '').length < 10) {
+      newErrors.phone = 'Please enter a valid 10-digit phone number';
+    }
+
+    if (!cleanAddress1) {
+      newErrors.addressLine1 = 'Address Line 1 is required';
+    }
+
+    if (!cleanCity) {
+      newErrors.city = 'City is required';
+    }
+
+    if (!cleanState) {
+      newErrors.stateName = 'State is required';
+    }
+
+    if (!cleanPincode) {
+      newErrors.pincode = 'Pincode / ZIP code is required';
+    } else if (cleanPincode.replace(/\D/g, '').length < 5) {
+      newErrors.pincode = 'Please enter a valid pincode';
+    }
+
+    if (!cleanCountry) {
+      newErrors.country = 'Country is required';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
+      Alert.alert('Address & Details Required', 'Please complete all required fields marked with * before registering.');
       return;
     }
+
+    setFormErrors({});
     setLoading(true);
     try {
+      const streetCombined = cleanAddress2 ? `${cleanAddress1}, ${cleanAddress2}` : cleanAddress1;
+      const formattedAddress = [
+        streetCombined,
+        cleanCity,
+        cleanState ? `${cleanState}${cleanPincode ? ` - ${cleanPincode}` : ''}` : cleanPincode,
+        cleanCountry,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
       await register({
         email: cleanEmail,
         password: cleanPassword,
-        full_name: fullName.trim(),
-        phone: phone.trim(),
+        full_name: cleanFullName,
+        phone: cleanPhone,
         company_name: companyName.trim(),
         gstin: gstin.trim(),
+        address_line1: cleanAddress1,
+        address_line2: cleanAddress2,
+        street_address: streetCombined,
+        street: streetCombined,
+        address: formattedAddress,
+        city: cleanCity,
+        state: cleanState,
+        pincode: cleanPincode,
+        country: cleanCountry,
       });
     } catch (err: any) {
       Alert.alert('Registration Failed', err.message || 'Could not register');
@@ -958,29 +1035,38 @@ export const AccountScreen: React.FC = () => {
           </View>
 
           {/* Form */}
-          <Text style={styles.label}>EMAIL ADDRESS</Text>
-          <View style={styles.inputWithIconContainer}>
+          <Text style={styles.label}>EMAIL ADDRESS *</Text>
+          <View style={[styles.inputWithIconContainer, formErrors.email ? styles.inputError : null]}>
             <Mail color="#888888" size={18} style={styles.inputLeftIcon} />
             <TextInput
               style={styles.inputWithIcon}
-              placeholder=""
+              placeholder="e.g. user@example.com"
+              placeholderTextColor="#999999"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: '' }));
+              }}
             />
           </View>
+          {formErrors.email ? <Text style={styles.errorText}>{formErrors.email}</Text> : null}
 
-          <Text style={styles.label}>PASSWORD</Text>
-          <View style={styles.inputWithIconContainer}>
+          <Text style={styles.label}>PASSWORD *</Text>
+          <View style={[styles.inputWithIconContainer, formErrors.password ? styles.inputError : null]}>
             <Lock color="#888888" size={18} style={styles.inputLeftIcon} />
             <TextInput
               style={styles.inputWithIcon}
-              placeholder=""
+              placeholder="Min. 6 characters"
+              placeholderTextColor="#999999"
               secureTextEntry={!showPassword}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (formErrors.password) setFormErrors((prev) => ({ ...prev, password: '' }));
+              }}
             />
             <TouchableOpacity
               style={styles.eyeBtn}
@@ -991,48 +1077,168 @@ export const AccountScreen: React.FC = () => {
               {showPassword ? <EyeOff color="#666" size={18} /> : <Eye color="#666" size={18} />}
             </TouchableOpacity>
           </View>
+          {formErrors.password ? <Text style={styles.errorText}>{formErrors.password}</Text> : null}
 
           {authTab === 'register' && (
             <>
               <Text style={styles.label}>FULL NAME *</Text>
-              <View style={styles.inputWithIconContainer}>
+              <View style={[styles.inputWithIconContainer, formErrors.fullName ? styles.inputError : null]}>
                 <UserIcon color="#888888" size={18} style={styles.inputLeftIcon} />
                 <TextInput
                   style={styles.inputWithIcon}
-                  placeholder=""
+                  placeholder="e.g. Samuel Nikhil"
+                  placeholderTextColor="#999999"
                   value={fullName}
-                  onChangeText={setFullName}
+                  onChangeText={(text) => {
+                    setFullName(text);
+                    if (formErrors.fullName) setFormErrors((prev) => ({ ...prev, fullName: '' }));
+                  }}
                 />
               </View>
+              {formErrors.fullName ? <Text style={styles.errorText}>{formErrors.fullName}</Text> : null}
 
-              <Text style={styles.label}>PHONE NUMBER</Text>
-              <View style={styles.inputWithIconContainer}>
-                <Phone color="#888888" size={18} style={styles.inputLeftIcon} />
-                <TextInput
-                  style={styles.inputWithIcon}
-                  placeholder=""
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
-                />
-              </View>
+              <Text style={styles.label}>MOBILE NUMBER *</Text>
+              <PhoneInputWithCountry
+                value={phone}
+                onChangeText={(text) => {
+                  setPhone(text);
+                  if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: '' }));
+                }}
+                countryCode={countryCode}
+                onChangeCountryCode={setCountryCode}
+                placeholder="98765 43210"
+                error={!!formErrors.phone}
+              />
+              {formErrors.phone ? <Text style={styles.errorText}>{formErrors.phone}</Text> : null}
 
               <Text style={styles.label}>COMPANY / BUSINESS NAME (WHOLESALE)</Text>
               <View style={styles.inputWithIconContainer}>
                 <Briefcase color="#888888" size={18} style={styles.inputLeftIcon} />
                 <TextInput
                   style={styles.inputWithIcon}
-                  placeholder=""
+                  placeholder="e.g. Sri Balaji Jewellers (Optional)"
+                  placeholderTextColor="#999999"
                   value={companyName}
                   onChangeText={setCompanyName}
                 />
+              </View>
+
+              {/* ADDRESS SECTION */}
+              <View style={styles.addressSectionHeader}>
+                <MapPin color="#C5A059" size={16} />
+                <Text style={styles.addressSectionTitle}>SHIPPING / DELIVERY ADDRESS</Text>
+              </View>
+
+              <Text style={styles.label}>ADDRESS LINE 1 (DOOR / BUILDING / STREET) *</Text>
+              <View style={[styles.inputWithIconContainer, formErrors.addressLine1 ? styles.inputError : null]}>
+                <Home color="#888888" size={18} style={styles.inputLeftIcon} />
+                <TextInput
+                  style={styles.inputWithIcon}
+                  placeholder="Door No. / Flat, Building Name, Street"
+                  placeholderTextColor="#999999"
+                  value={addressLine1}
+                  onChangeText={(text) => {
+                    setAddressLine1(text);
+                    if (formErrors.addressLine1) setFormErrors((prev) => ({ ...prev, addressLine1: '' }));
+                  }}
+                />
+              </View>
+              {formErrors.addressLine1 ? <Text style={styles.errorText}>{formErrors.addressLine1}</Text> : null}
+
+              <Text style={styles.label}>ADDRESS LINE 2 (LANDMARK / AREA - OPTIONAL)</Text>
+              <View style={styles.inputWithIconContainer}>
+                <Building2 color="#888888" size={18} style={styles.inputLeftIcon} />
+                <TextInput
+                  style={styles.inputWithIcon}
+                  placeholder="Near Temple, Main Road, Area (Optional)"
+                  placeholderTextColor="#999999"
+                  value={addressLine2}
+                  onChangeText={setAddressLine2}
+                />
+              </View>
+
+              {/* 2-Column Row for City & State */}
+              <View style={styles.formRow}>
+                <View style={styles.formCol}>
+                  <Text style={styles.label}>CITY *</Text>
+                  <View style={[styles.inputWithIconContainer, formErrors.city ? styles.inputError : null]}>
+                    <TextInput
+                      style={[styles.inputWithIcon, { paddingLeft: 4 }]}
+                      placeholder="City"
+                      placeholderTextColor="#999999"
+                      value={city}
+                      onChangeText={(text) => {
+                        setCity(text);
+                        if (formErrors.city) setFormErrors((prev) => ({ ...prev, city: '' }));
+                      }}
+                    />
+                  </View>
+                  {formErrors.city ? <Text style={styles.errorText}>{formErrors.city}</Text> : null}
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.label}>STATE *</Text>
+                  <View style={[styles.inputWithIconContainer, formErrors.stateName ? styles.inputError : null]}>
+                    <TextInput
+                      style={[styles.inputWithIcon, { paddingLeft: 4 }]}
+                      placeholder="State"
+                      placeholderTextColor="#999999"
+                      value={stateName}
+                      onChangeText={(text) => {
+                        setStateName(text);
+                        if (formErrors.stateName) setFormErrors((prev) => ({ ...prev, stateName: '' }));
+                      }}
+                    />
+                  </View>
+                  {formErrors.stateName ? <Text style={styles.errorText}>{formErrors.stateName}</Text> : null}
+                </View>
+              </View>
+
+              {/* 2-Column Row for Pincode & Country */}
+              <View style={styles.formRow}>
+                <View style={styles.formCol}>
+                  <Text style={styles.label}>PINCODE / ZIP CODE *</Text>
+                  <View style={[styles.inputWithIconContainer, formErrors.pincode ? styles.inputError : null]}>
+                    <TextInput
+                      style={[styles.inputWithIcon, { paddingLeft: 4 }]}
+                      placeholder="530001"
+                      placeholderTextColor="#999999"
+                      keyboardType="numeric"
+                      value={pincode}
+                      onChangeText={(text) => {
+                        setPincode(text);
+                        if (formErrors.pincode) setFormErrors((prev) => ({ ...prev, pincode: '' }));
+                      }}
+                    />
+                  </View>
+                  {formErrors.pincode ? <Text style={styles.errorText}>{formErrors.pincode}</Text> : null}
+                </View>
+
+                <View style={styles.formCol}>
+                  <Text style={styles.label}>COUNTRY *</Text>
+                  <View style={[styles.inputWithIconContainer, formErrors.country ? styles.inputError : null]}>
+                    <Globe color="#888888" size={16} style={styles.inputLeftIcon} />
+                    <TextInput
+                      style={styles.inputWithIcon}
+                      placeholder="India"
+                      placeholderTextColor="#999999"
+                      value={country}
+                      onChangeText={(text) => {
+                        setCountry(text);
+                        if (formErrors.country) setFormErrors((prev) => ({ ...prev, country: '' }));
+                      }}
+                    />
+                  </View>
+                  {formErrors.country ? <Text style={styles.errorText}>{formErrors.country}</Text> : null}
+                </View>
               </View>
 
               <Text style={styles.label}>GSTIN (OPTIONAL)</Text>
               <View style={styles.inputWithIconContainer}>
                 <TextInput
                   style={[styles.inputWithIcon, { paddingLeft: 14 }]}
-                  placeholder=""
+                  placeholder="e.g. 37AAAAA0000A1Z5"
+                  placeholderTextColor="#999999"
                   autoCapitalize="characters"
                   value={gstin}
                   onChangeText={setGstin}
@@ -1471,6 +1677,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#9E7E45',
+  },
+  addressSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 18,
+    marginBottom: 4,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAE6E1',
+  },
+  addressSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#9E7E45',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  formCol: {
+    flex: 1,
+  },
+  inputError: {
+    borderColor: '#DC2626',
+    borderWidth: 1.2,
+  },
+  errorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginTop: 2,
+    marginBottom: 4,
+    marginLeft: 2,
   },
   modalBackdrop: {
     flex: 1,

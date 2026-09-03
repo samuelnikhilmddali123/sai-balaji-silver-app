@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { downloadAndSharePhoto, openWhatsAppDirect } from '../services/photoShare';
+import { PhoneInputWithCountry } from '../components/PhoneInputWithCountry';
 
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
@@ -621,14 +622,12 @@ export const CartScreen: React.FC = () => {
                 onChangeText={setCustomerName}
               />
 
-              <Text style={styles.formLabel}>Phone Number (WhatsApp preferred) *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="e.g. +91 98765 00000"
-                placeholderTextColor="#999"
-                keyboardType="phone-pad"
+              <Text style={styles.formLabel}>Mobile Number (WhatsApp preferred) *</Text>
+              <PhoneInputWithCountry
                 value={customerPhone}
                 onChangeText={setCustomerPhone}
+                placeholder="98765 43210"
+                containerStyle={{ marginBottom: 12, backgroundColor: '#FFFFFF' }}
               />
 
               <Text style={styles.formLabel}>Complete Shipping Address *</Text>

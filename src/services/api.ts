@@ -63,10 +63,48 @@ api.interceptors.response.use(
 
 // --- AUTHENTICATION API ---
 export const authApi = {
-  register: async (payload: { name: string; email: string; password: string; full_name?: string; phone?: string; company_name?: string; gstin?: string }) => {
+  register: async (payload: {
+    name?: string;
+    email: string;
+    password: string;
+    full_name?: string;
+    phone?: string;
+    company_name?: string;
+    gstin?: string;
+    address_line1?: string;
+    address_line2?: string;
+    street_address?: string;
+    street?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+  }) => {
+    const streetCombined =
+      payload.street_address ||
+      (payload.address_line1
+        ? payload.address_line2
+          ? `${payload.address_line1.trim()}, ${payload.address_line2.trim()}`
+          : payload.address_line1.trim()
+        : payload.street || payload.address || '');
+
     const body = {
       ...payload,
       name: payload.name || payload.full_name || '',
+      full_name: payload.full_name || payload.name || '',
+      phone: payload.phone || '',
+      street_address: streetCombined,
+      street: streetCombined,
+      address_line1: payload.address_line1 || '',
+      address_line2: payload.address_line2 || '',
+      address: payload.address || streetCombined,
+      city: payload.city || '',
+      state: payload.state || '',
+      pincode: payload.pincode || '',
+      country: payload.country || 'India',
+      company_name: payload.company_name || '',
+      gstin: payload.gstin || '',
     };
     try {
       return await api.post('/auth/register', body);
@@ -109,11 +147,23 @@ export const authApi = {
       throw e;
     }
   },
-  googleAuth: (payload: { idToken: string }) =>
+  googleAuth: (payload: {
+    idToken: string;
+    email?: string;
+    name?: string;
+    full_name?: string;
+    photo_url?: string;
+    firebase_uid?: string;
+  }) =>
     api.post('/auth/google', {
       idToken: payload.idToken,
       id_token: payload.idToken,
       firebase_token: payload.idToken,
+      email: payload.email || '',
+      name: payload.name || payload.full_name || '',
+      full_name: payload.full_name || payload.name || '',
+      photo_url: payload.photo_url || '',
+      firebase_uid: payload.firebase_uid || '',
     }),
   getMe: () => api.get('/auth/me'),
   updateMe: (data: any) => api.put('/auth/me', data),
@@ -172,6 +222,13 @@ export const silverRateApi = {
       if (pollInterval) clearInterval(pollInterval);
     };
   },
+};
+
+// --- SETTINGS & ADMIN CONTACT API ---
+export const settingsApi = {
+  getSettings: () => api.get('/settings'),
+  updateSettings: (data: { whatsapp_number?: string; phone?: string; [key: string]: any }) =>
+    api.put('/settings', data).catch(() => api.post('/settings', data)),
 };
 
 // --- CATALOG & CATEGORIES API ---
