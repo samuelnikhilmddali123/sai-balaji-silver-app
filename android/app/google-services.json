@@ -37,6 +37,13 @@
             {
               "client_id": "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "692516345900-gmiiu37b38ugioudamgmmo7jeh6a7k9i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.saibalajisilverworks"
+              }
             }
           ]
         }
@@ -59,6 +66,14 @@
           }
         },
         {
+          "client_id": "692516345900-c3c0celqquuqr5s47p2kn5759hbeti9s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.saibalajisilverworks",
+            "certificate_hash": "6eb11ace761def8b7bcd5ac525f5eb7c91d71ebf"
+          }
+        },
+        {
           "client_id": "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -74,6 +89,13 @@
             {
               "client_id": "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "692516345900-gmiiu37b38ugioudamgmmo7jeh6a7k9i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.saibalajisilverworks"
+              }
             }
           ]
         }
