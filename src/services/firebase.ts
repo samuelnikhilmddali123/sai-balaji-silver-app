@@ -42,3 +42,4 @@ if (app) {
 export const auth = authInstance;
 export { GoogleAuthProvider, signInWithCredential, signOut };
 export const WEB_CLIENT_ID = "692516345900-bbjqs67tsh994gukua8ffu5kdi59v9k3.apps.googleusercontent.com";
+export const IOS_CLIENT_ID = "692516345900-gmiiu37b38ugioudamgmmo7jeh6a7k9i.apps.googleusercontent.com";

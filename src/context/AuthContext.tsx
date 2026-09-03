@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { authApi } from '../services/api';
-import { auth, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut, WEB_CLIENT_ID } from '../services/firebase';
+import { auth, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut, WEB_CLIENT_ID, IOS_CLIENT_ID } from '../services/firebase';
 import { setAdminPhoneNumber } from '../services/photoShare';
 import { User } from '../types';
 
@@ -55,6 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         GoogleSignin.configure({
           webClientId: WEB_CLIENT_ID,
+          iosClientId: IOS_CLIENT_ID,
           scopes: ['profile', 'email'],
           offlineAccess: false,
           forceCodeForRefreshToken: false,

@@ -15,8 +15,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.saibalajisilverworks",
-      "buildNumber": "1",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "2",
       "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.692516345900-gmiiu37b38ugioudamgmmo7jeh6a7k9i",
+              "saibalajisilverworks"
+            ]
+          }
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryAddUsageDescription": "Sai Balaji Silverworks needs access to save product photos and quotes to your gallery.",
         "NSPhotoLibraryUsageDescription": "Sai Balaji Silverworks needs access to your photos to share jewelry designs."
