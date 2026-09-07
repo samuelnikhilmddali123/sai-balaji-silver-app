@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   darkOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
 
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   mobileVideoOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modalPlayCircle: {

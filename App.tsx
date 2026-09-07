@@ -32,7 +32,7 @@ export default function App() {
               <MenuProvider>
                 <SilverRateProvider>
                   <NavigationContainer>
-                    <StatusBar style="dark" backgroundColor="#FAF8F5" />
+                    <StatusBar style="dark" />
                     <RootNavigator />
                   </NavigationContainer>
                 </SilverRateProvider>

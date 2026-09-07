@@ -268,7 +268,7 @@ export const AboutScreen: React.FC = () => {
                 docVideoData.thumbnail_url ||
                 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
             }}
-            style={{ ...StyleSheet.absoluteFillObject, opacity: 0.45 }}
+            style={{ ...StyleSheet.absoluteFill, opacity: 0.45 }}
             resizeMode="cover"
           />
           <View style={styles.docBadge}>
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   featuredVideoOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.2)',
@@ -980,7 +980,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   galleryPlayOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

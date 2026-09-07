@@ -12,5 +12,8 @@ ios/Pods/
 .env.development.local
 .env.test.local
 .env.production.local
-
-
+.DS_Store
+.vscode/
+.gradle/
+*.keystore
+!debug.keystore
