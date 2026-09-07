@@ -234,7 +234,7 @@ export const settingsApi = {
 // --- CATALOG & CATEGORIES API ---
 export const catalogApi = {
   getCategories: () => api.get('/categories'),
-  getProducts: (params?: { category?: string; search?: string; page?: number; limit?: number }) =>
+  getProducts: (params?: { category?: string; category_slug?: string; category_id?: number; search?: string; page?: number; limit?: number; in_stock?: boolean; is_featured?: boolean; is_new_arrival?: boolean; sort_by?: string; [key: string]: any }) =>
     api.get('/products', { params }),
   getProductDetail: (idOrSlug: string | number) =>
     api.get(`/products/${idOrSlug}`),

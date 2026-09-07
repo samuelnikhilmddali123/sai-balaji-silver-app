@@ -41,6 +41,7 @@ import { useSilverRate } from '../context/SilverRateContext';
 import { Product, ProductVariant } from '../types';
 import { catalogApi, silverRateApi, getFullImageUrl } from '../services/api';
 import { downloadAndSharePhoto, openWhatsAppDirect } from '../services/photoShare';
+import { isProductFullyOutOfStock, isVariantOutOfStock } from '../utils/stock';
 
 const { width } = Dimensions.get('window');
 
@@ -54,6 +55,8 @@ export interface MeasurementVariant {
   making_type?: 'fixed' | 'per_gram' | 'percentage';
   making_value?: number;
   sku_suffix?: string;
+  stock?: number;
+  in_stock?: boolean;
 }
 
 // Default fallback measurement size variants matching luxury silver standards
@@ -69,6 +72,7 @@ export const ProductDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const isWholesale = route.params?.isWholesale === true;
   const initialProduct: Product = route.params?.product;
 
   const [product, setProduct] = useState<Product>(initialProduct);
@@ -82,8 +86,8 @@ export const ProductDetailScreen: React.FC = () => {
     initialProduct?.featured_image || initialProduct?.images?.[0] || ''
   );
 
-  // Selected Measurement Variant
-  const [activeVariant, setActiveVariant] = useState<MeasurementVariant>(DEFAULT_MEASUREMENT_VARIANTS[0]);
+  // Selected Measurement Variant ID
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
   // Active Bottom Tab State
   const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'purity' | 'care'>('desc');
@@ -151,13 +155,23 @@ export const ProductDetailScreen: React.FC = () => {
           making_charge: vMaking,
           making_type: v.making_type || 'fixed',
           sku_suffix: v.sku ? `-${v.sku}` : `-${index + 1}`,
+          stock: v.stock !== undefined ? parseFloat(String(v.stock)) : undefined,
+          in_stock: v.in_stock !== undefined ? Boolean(v.in_stock) : undefined,
         };
       });
     }
     return DEFAULT_MEASUREMENT_VARIANTS;
   }, [product]);
 
-  const currentVariant = activeVariant || availableVariants[0];
+  // Current active variant (always defaults to 1st variant from availableVariants)
+  const currentVariant = useMemo(() => {
+    if (selectedVariantId) {
+      const found = availableVariants.find((v) => v.id === selectedVariantId);
+      if (found) return found;
+    }
+    return availableVariants[0] || DEFAULT_MEASUREMENT_VARIANTS[0];
+  }, [availableVariants, selectedVariantId]);
+
   const currentWeight = currentVariant?.weight_g || product.weight_g || 250;
 
   const breakdown = calculateDynamicPrice(
@@ -183,23 +197,29 @@ export const ProductDetailScreen: React.FC = () => {
   );
   const inCartQuantity = cartItem ? cartItem.quantity : 0;
 
+  // Stock Availability Calculation
+  const isProductOutOfStock = isProductFullyOutOfStock(product);
+  const isVariantOutOfStockActive = isVariantOutOfStock(currentVariant as any, product);
+  const isOutOfStock = product.in_stock === false || (product.in_stock as any) === 'false' || isVariantOutOfStockActive;
+
   // Handlers
   const handleAddToCart = () => {
+    if (isOutOfStock) return;
     const variantObj: ProductVariant = {
-      size: activeVariant.name,
-      label: activeVariant.name,
-      weight_g: activeVariant.weight_g,
+      size: currentVariant.name,
+      label: currentVariant.name,
+      weight_g: currentVariant.weight_g,
       retail_price: finalCalculatedPrice,
       price: finalCalculatedPrice,
       sku: currentSku,
-      height: String(activeVariant.height_in || ''),
-      diameter: String(activeVariant.diameter_in || ''),
+      height: String(currentVariant.height_in || ''),
+      diameter: String(currentVariant.diameter_in || ''),
     };
 
     const productWithVariant: Product = {
       ...product,
       sku: currentSku,
-      weight_g: activeVariant.weight_g,
+      weight_g: currentVariant.weight_g,
       retail_price: finalCalculatedPrice,
       selected_variant: variantObj,
     };
@@ -287,9 +307,15 @@ export const ProductDetailScreen: React.FC = () => {
           <View style={styles.mainImageFrame}>
             <Image
               source={{ uri: getFullImageUrl(selectedImg || product.featured_image) }}
-              style={styles.mainImage}
+              style={[styles.mainImage, isOutOfStock ? { opacity: 0.55 } : undefined]}
               resizeMode="contain"
             />
+
+            {isOutOfStock && (
+              <View style={styles.detailOutOfStockBadge}>
+                <Text style={styles.detailOutOfStockText}>OUT OF STOCK</Text>
+              </View>
+            )}
 
             {/* Floating Action Buttons */}
             <View style={styles.floatingActions}>
@@ -313,15 +339,6 @@ export const ProductDetailScreen: React.FC = () => {
                 <Share2 size={18} color="#202020" />
               </TouchableOpacity>
             </View>
-
-            {/* Back Button Overlay */}
-            <TouchableOpacity
-              style={styles.backBtnOverlay}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.8}
-            >
-              <ArrowLeft size={18} color="#202020" />
-            </TouchableOpacity>
           </View>
 
           {/* Thumbnails Gallery */}
@@ -363,10 +380,10 @@ export const ProductDetailScreen: React.FC = () => {
               <Text style={styles.pillBadgeText}>Net: {currentWeight}g</Text>
             </View>
 
-            {activeVariant.height_in && (
+            {currentVariant.height_in && (
               <View style={styles.pillBadge}>
                 <Text style={styles.pillBadgeText}>
-                  Height: {activeVariant.height_in} in, Diameter: {activeVariant.diameter_in} in
+                  Height: {currentVariant.height_in} in, Diameter: {currentVariant.diameter_in} in
                 </Text>
               </View>
             )}
@@ -378,35 +395,64 @@ export const ProductDetailScreen: React.FC = () => {
             SKU: {currentSku} | {product.subcategory || product.category_slug || 'Silverware'}
           </Text>
 
-          {/* DYNAMIC PRICE DISPLAY */}
-          <View style={styles.priceContainer}>
-            <View style={styles.priceHeaderRow}>
-              <Text style={styles.priceCurrency}>₹</Text>
-              <Text style={styles.priceMainText}>{finalCalculatedPrice.toLocaleString('en-IN')}</Text>
-              <View style={styles.liveRateTag}>
-                <RefreshCw size={10} color="#C5A059" style={{ marginRight: 4 }} />
-                <Text style={styles.liveRateTagText}>Live Silver Rate</Text>
+          {/* DYNAMIC PRICE / WHOLESALE DISPLAY */}
+          {isWholesale ? (
+            <View style={[styles.priceContainer, { backgroundColor: '#FAF9F5', borderColor: '#E8D4B0' }]}>
+              <View style={styles.priceHeaderRow}>
+                <Text style={[styles.priceMainText, { fontSize: 20, color: '#1A1918' }]}>Quote on Request</Text>
+                <View style={[styles.liveRateTag, { backgroundColor: '#1A1918' }]}>
+                  <Text style={[styles.liveRateTagText, { color: '#FFFFFF' }]}>Wholesale B2B</Text>
+                </View>
               </View>
-            </View>
 
-            {/* DYNAMIC PRICE BREAKDOWN BOX (3-Column Grid) */}
-            <View style={styles.breakdownBox}>
-              <View style={styles.breakdownCol}>
-                <Text style={styles.breakdownLabel}>NET WEIGHT</Text>
-                <Text style={styles.breakdownVal}>{currentWeight} g</Text>
-              </View>
-              <View style={styles.breakdownDivider} />
-              <View style={styles.breakdownCol}>
-                <Text style={styles.breakdownLabel}>LIVE RATE</Text>
-                <Text style={styles.breakdownVal}>₹{liveSilverRate.toFixed(1)}/g</Text>
-              </View>
-              <View style={styles.breakdownDivider} />
-              <View style={styles.breakdownCol}>
-                <Text style={styles.breakdownLabel}>MAKING CHARGE</Text>
-                <Text style={styles.breakdownVal}>₹{makingCharge.toLocaleString('en-IN')}</Text>
+              {/* WHOLESALE DETAILS BOX */}
+              <View style={styles.breakdownBox}>
+                <View style={styles.breakdownCol}>
+                  <Text style={styles.breakdownLabel}>PRICING MODE</Text>
+                  <Text style={styles.breakdownVal}>B2B Quote</Text>
+                </View>
+                <View style={styles.breakdownDivider} />
+                <View style={styles.breakdownCol}>
+                  <Text style={styles.breakdownLabel}>MOQ</Text>
+                  <Text style={styles.breakdownVal}>5 Pcs</Text>
+                </View>
+                <View style={styles.breakdownDivider} />
+                <View style={styles.breakdownCol}>
+                  <Text style={styles.breakdownLabel}>PURITY</Text>
+                  <Text style={styles.breakdownVal}>{isFineSilver999 ? '999 Fine' : '925 Silver'}</Text>
+                </View>
               </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.priceContainer}>
+              <View style={styles.priceHeaderRow}>
+                <Text style={styles.priceCurrency}>₹</Text>
+                <Text style={styles.priceMainText}>{finalCalculatedPrice.toLocaleString('en-IN')}</Text>
+                <View style={styles.liveRateTag}>
+                  <RefreshCw size={10} color="#C5A059" style={{ marginRight: 4 }} />
+                  <Text style={styles.liveRateTagText}>Live Silver Rate</Text>
+                </View>
+              </View>
+
+              {/* DYNAMIC PRICE BREAKDOWN BOX (3-Column Grid) */}
+              <View style={styles.breakdownBox}>
+                <View style={styles.breakdownCol}>
+                  <Text style={styles.breakdownLabel}>NET WEIGHT</Text>
+                  <Text style={styles.breakdownVal}>{currentWeight} g</Text>
+                </View>
+                <View style={styles.breakdownDivider} />
+                <View style={styles.breakdownCol}>
+                  <Text style={styles.breakdownLabel}>LIVE RATE</Text>
+                  <Text style={styles.breakdownVal}>₹{liveSilverRate.toFixed(1)}/g</Text>
+                </View>
+                <View style={styles.breakdownDivider} />
+                <View style={styles.breakdownCol}>
+                  <Text style={styles.breakdownLabel}>MAKING CHARGE</Text>
+                  <Text style={styles.breakdownVal}>₹{makingCharge.toLocaleString('en-IN')}</Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* MEASUREMENT / SIZE SELECTOR */}
           <View style={styles.measurementCard}>
@@ -425,6 +471,7 @@ export const ProductDetailScreen: React.FC = () => {
             >
               {availableVariants.map((variant) => {
                 const isSelected = currentVariant.id === variant.id;
+                const isVOutOfStock = isVariantOutOfStock(variant as any, product);
                 // Calculate variant price dynamically
                 const vWeight = variant.weight_g;
                 const vSilverVal = vWeight * purityFactor * liveSilverRate;
@@ -434,21 +481,37 @@ export const ProductDetailScreen: React.FC = () => {
                 const vFinalPrice = Math.round(vSilverVal + vMaking);
 
                 const hasWeightInName = variant.name.toLowerCase().includes('g');
-                const subText = hasWeightInName
-                  ? `₹${vFinalPrice.toLocaleString('en-IN')}`
-                  : `₹${vFinalPrice.toLocaleString('en-IN')} (${vWeight}g)`;
+                const subText = isWholesale
+                  ? (hasWeightInName ? `${vWeight}g` : `Net: ${vWeight}g`)
+                  : (hasWeightInName
+                    ? `₹${vFinalPrice.toLocaleString('en-IN')}`
+                    : `₹${vFinalPrice.toLocaleString('en-IN')} (${vWeight}g)`);
+
+                const isPillDisabled = isVOutOfStock;
 
                 return (
                   <TouchableOpacity
                     key={variant.id}
-                    onPress={() => setActiveVariant(variant)}
-                    style={[styles.measurementPill, isSelected && styles.activeMeasurementPill]}
+                    onPress={() => setSelectedVariantId(variant.id)}
+                    style={[
+                      styles.measurementPill,
+                      isSelected && styles.activeMeasurementPill,
+                      isPillDisabled && styles.disabledMeasurementPill,
+                    ]}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.measurementPillTitle, isSelected && styles.activeMeasurementPillTitle]}>
-                      {variant.name}
+                    <Text style={[
+                      styles.measurementPillTitle,
+                      isSelected && styles.activeMeasurementPillTitle,
+                      isPillDisabled && styles.disabledMeasurementPillTitle,
+                    ]}>
+                      {variant.name}{isPillDisabled ? ' (Out of Stock)' : ''}
                     </Text>
-                    <Text style={[styles.measurementPillSub, isSelected && styles.activeMeasurementPillSub]}>
+                    <Text style={[
+                      styles.measurementPillSub,
+                      isSelected && styles.activeMeasurementPillSub,
+                      isPillDisabled && styles.disabledMeasurementPillSub,
+                    ]}>
                       {subText}
                     </Text>
                   </TouchableOpacity>
@@ -462,9 +525,19 @@ export const ProductDetailScreen: React.FC = () => {
             Exquisite handcrafted {product.title} by Sai Balaji Silverworks. Meticulously designed with authentic {isFineSilver999 ? '999 Fine Silver' : '925 Sterling Silver'} and a protective anti-tarnish luster.
           </Text>
 
+          {/* OUT OF STOCK ALERT BANNER */}
+          {isOutOfStock && (
+            <View style={styles.outOfStockAlertContainer}>
+              <Text style={styles.outOfStockAlertTitle}>OUT OF STOCK</Text>
+              <Text style={styles.outOfStockAlertText}>
+                This product is currently out of stock and cannot be added to bag.
+              </Text>
+            </View>
+          )}
+
           {/* BUYING ACTIONS BAR */}
           <View style={styles.buyingActionsRow}>
-            {inCartQuantity > 0 ? (
+            {inCartQuantity > 0 && !isOutOfStock ? (
               <View style={styles.inCartRow}>
                 {/* Quantity Stepper */}
                 <View style={styles.stepperContainer}>
@@ -495,11 +568,18 @@ export const ProductDetailScreen: React.FC = () => {
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.addBagBtn, addSuccess && styles.addBagBtnSuccess]}
+                style={[
+                  styles.addBagBtn,
+                  addSuccess && styles.addBagBtnSuccess,
+                  isOutOfStock && styles.disabledBagBtn,
+                ]}
                 onPress={handleAddToCart}
+                disabled={isOutOfStock}
                 activeOpacity={0.88}
               >
-                {addSuccess ? (
+                {isOutOfStock ? (
+                  <Text style={styles.addBagBtnText}>OUT OF STOCK</Text>
+                ) : addSuccess ? (
                   <>
                     <Check size={18} color="#FFFFFF" />
                     <Text style={styles.addBagBtnText}>ADDED TO BAG</Text>
@@ -616,16 +696,12 @@ export const ProductDetailScreen: React.FC = () => {
                     <Text style={styles.specKey}>Making Charge:</Text>
                     <Text style={styles.specVal}>₹{makingCharge.toLocaleString('en-IN')}</Text>
                   </View>
-                  {activeVariant.height_in && (
+                  {currentVariant.height_in && (
                     <View style={styles.specRow}>
                       <Text style={styles.specKey}>Dimensions:</Text>
-                      <Text style={styles.specVal}>Height {activeVariant.height_in} in, Diameter {activeVariant.diameter_in} in</Text>
+                      <Text style={styles.specVal}>Height {currentVariant.height_in} in, Diameter {currentVariant.diameter_in} in</Text>
                     </View>
                   )}
-                  <View style={styles.specRow}>
-                    <Text style={styles.specKey}>SKU Code:</Text>
-                    <Text style={styles.specVal}>{currentSku}</Text>
-                  </View>
                   <View style={styles.specRow}>
                     <Text style={styles.specKey}>Hallmarking:</Text>
                     <Text style={styles.specVal}>BIS NABL Laser Hallmarked</Text>
@@ -1266,5 +1342,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#1A1918',
+  },
+  detailOutOfStockBadge: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    backgroundColor: '#C53030',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  detailOutOfStockText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  outOfStockAlertContainer: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#FEB2B2',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  outOfStockAlertTitle: {
+    color: '#C53030',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  outOfStockAlertText: {
+    color: '#9B2C2C',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  disabledBagBtn: {
+    backgroundColor: '#A0AEC0',
+    borderColor: '#A0AEC0',
+    opacity: 0.7,
+  },
+  disabledMeasurementPill: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+    opacity: 0.6,
+  },
+  disabledMeasurementPillTitle: {
+    color: '#9CA3AF',
+  },
+  disabledMeasurementPillSub: {
+    color: '#9CA3AF',
   },
 });

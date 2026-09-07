@@ -143,39 +143,77 @@ export const CartScreen: React.FC = () => {
     const phone = customerPhone.trim() || user?.phone || 'Not Provided';
     const address = shippingAddress.trim() || user?.address || 'Default Address';
 
-    let message = `*SAI BALAJI SILVERWORKS - ENQUIRY & ORDER DETAILS*\n`;
-    message += `-------------------------\n`;
-    message += `*Mode*: ${isWholesale ? 'WHOLESALE B2B QUOTE' : 'RETAIL ORDER'}\n`;
-    message += `*Total Items*: ${totalQuantity} item(s)\n\n`;
+    let message = '';
 
-    message += `*SELECTED PRODUCTS & PHOTOS*:\n\n`;
-    effectiveCartItems.forEach((item, index) => {
-      const imgUrl = getProductImageUrl(item.product);
-      message += `*Item ${index + 1}: ${item.product.title}*\n`;
-      message += `• SKU: ${item.product.sku || `SBS-PA-${item.product.id}`}\n`;
-      message += `• Purity: ${item.product.silver_purity || '925/999'}\n`;
-      message += `• Weight: ${item.product.weight_g}g\n`;
-      message += `• Qty: ${item.quantity} x ₹${item.effectivePrice.toLocaleString('en-IN')} = ₹${item.itemSubtotal.toLocaleString('en-IN')}\n`;
-      if (imgUrl) {
-        message += `Product Photo:\n${imgUrl}\n`;
-      }
-      message += `\n`;
-    });
+    if (isWholesale) {
+      const reqId = `SBS-WS-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    message += `-------------------------\n`;
-    message += `*FINANCIAL SUMMARY*:\n`;
-    message += `• Subtotal: ₹${subtotal.toLocaleString('en-IN')}\n`;
-    message += `• GST (3% Silver Tax): ₹${gstTax.toLocaleString('en-IN')}\n`;
-    message += `• Shipping: ${shippingFee === 0 ? 'FREE' : `₹${shippingFee}`}\n`;
-    message += `• *GRAND TOTAL*: ₹${grandTotal.toLocaleString('en-IN')}\n\n`;
+      message += `Hello Sai Balaji Silver Works Admin,\n\n`;
+      message += `A new B2B WHOLESALE BOOKING has been submitted!\n\n`;
+      message += `Requisition ID: ${reqId}\n\n`;
 
-    message += `-------------------------\n`;
-    message += `*DELIVERY ADDRESS & CUSTOMER INFO*:\n`;
-    message += `• Name: ${name}\n`;
-    message += `• Phone: ${phone}\n`;
-    message += `• Shipping Address: ${address}\n`;
-    if (companyName.trim()) message += `• Company: ${companyName.trim()}\n`;
-    if (gstin.trim()) message += `• GSTIN: ${gstin.trim()}\n`;
+      message += `BUSINESS CREDENTIALS\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      if (companyName.trim()) message += `Company / Firm: ${companyName.trim()}\n`;
+      message += `Contact Person: ${name}\n`;
+      message += `Mobile: ${phone}\n`;
+      if (user?.email) message += `Email: ${user.email}\n`;
+      if (gstin.trim()) message += `GSTIN: ${gstin.trim()}\n`;
+      if (address) message += `Address: ${address}\n`;
+
+      message += `\nREQUESTED WHOLESALE ITEMS\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      effectiveCartItems.forEach((item, index) => {
+        const variantSize = item.product.selected_variant?.size || (item.product as any).dimensions || '';
+        const itemWeight = item.product.selected_variant?.weight_g || item.product.weight_g;
+
+        message += `${index + 1}. ${item.product.title}\n`;
+        message += `SKU: ${item.product.sku || `SBS-PA-${item.product.id}`}\n`;
+        if (variantSize) message += `Size / Variant: ${variantSize}\n`;
+        if (itemWeight) message += `Weight: ${itemWeight}g\n`;
+        message += `Qty Requested: ${item.quantity} Pcs\n\n`;
+      });
+
+      message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `Pricing: Official B2B Quote Pending (No Prices)\n\n`;
+      message += `This wholesale booking has been submitted via Sai Balaji Silverworks App.\n\n`;
+      message += `Thank you.`;
+    } else {
+      message += `*SAI BALAJI SILVERWORKS - RETAIL ORDER DETAILS*\n`;
+      message += `-------------------------\n`;
+      message += `*Mode*: RETAIL ORDER\n`;
+      message += `*Total Items*: ${totalQuantity} item(s)\n\n`;
+
+      message += `*SELECTED PRODUCTS & PHOTOS*:\n\n`;
+      effectiveCartItems.forEach((item, index) => {
+        const imgUrl = getProductImageUrl(item.product);
+        message += `*Item ${index + 1}: ${item.product.title}*\n`;
+        message += `• SKU: ${item.product.sku || `SBS-PA-${item.product.id}`}\n`;
+        message += `• Purity: ${item.product.silver_purity || '925/999'}\n`;
+        message += `• Weight: ${item.product.weight_g}g\n`;
+        message += `• Qty: ${item.quantity} x ₹${item.effectivePrice.toLocaleString('en-IN')} = ₹${item.itemSubtotal.toLocaleString('en-IN')}\n`;
+        if (imgUrl) {
+          message += `Product Photo:\n${imgUrl}\n`;
+        }
+        message += `\n`;
+      });
+
+      message += `-------------------------\n`;
+      message += `*FINANCIAL SUMMARY*:\n`;
+      message += `• Subtotal: ₹${subtotal.toLocaleString('en-IN')}\n`;
+      message += `• GST (3% Silver Tax): ₹${gstTax.toLocaleString('en-IN')}\n`;
+      message += `• Shipping: ${shippingFee === 0 ? 'FREE' : `₹${shippingFee}`}\n`;
+      message += `• *GRAND TOTAL*: ₹${grandTotal.toLocaleString('en-IN')}\n\n`;
+
+      message += `-------------------------\n`;
+      message += `*DELIVERY ADDRESS & CUSTOMER INFO*:\n`;
+      message += `• Name: ${name}\n`;
+      message += `• Phone: ${phone}\n`;
+      message += `• Shipping Address: ${address}\n`;
+      if (companyName.trim()) message += `• Company: ${companyName.trim()}\n`;
+      if (gstin.trim()) message += `• GSTIN: ${gstin.trim()}\n`;
+    }
 
     const firstItem = effectiveCartItems[0];
     const firstImgUrl = firstItem ? getProductImageUrl(firstItem.product) : '';
@@ -515,11 +553,11 @@ export const CartScreen: React.FC = () => {
             <Sparkles color="#C5A059" size={14} />
             {isWholesale ? (
               <Text style={styles.progressNoteText}>
-                🎉 Wholesale Pricing Unlocked! ({savings > 0 ? `Saved ₹${savings.toLocaleString()}` : 'Wholesale Rates Applied'})
+                🎉 Wholesale Mode Active — B2B Quote Requisition (No Prices)
               </Text>
             ) : (
               <Text style={styles.progressNoteText}>
-                Add <Text style={{ fontWeight: 'bold', color: '#1A1918' }}>{itemsToWholesale} more item(s)</Text> to unlock Wholesale Pricing (MOQ: 5)
+                Add <Text style={{ fontWeight: 'bold', color: '#1A1918' }}>{itemsToWholesale} more item(s)</Text> to unlock Wholesale Mode (MOQ: 5)
               </Text>
             )}
           </View>
@@ -552,9 +590,15 @@ export const CartScreen: React.FC = () => {
                   SKU: {item.product.sku || `SBS-PA-${item.product.id}`} | {item.product.weight_g}g
                 </Text>
 
-                <Text style={styles.unitPrice}>
-                  ₹{item.effectivePrice.toLocaleString('en-IN')} / unit
-                </Text>
+                {isWholesale ? (
+                  <Text style={[styles.unitPrice, { color: '#B9A77A', fontWeight: '700' }]}>
+                    Pricing: Quote on Request | MOQ: 5 Pcs
+                  </Text>
+                ) : (
+                  <Text style={styles.unitPrice}>
+                    ₹{item.effectivePrice.toLocaleString('en-IN')} / unit
+                  </Text>
+                )}
 
                 <View style={styles.itemFooterRow}>
                   {/* Quantity Counter Pill */}
@@ -576,10 +620,16 @@ export const CartScreen: React.FC = () => {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Item Subtotal */}
-                  <Text style={styles.itemSubtotalVal}>
-                    ₹{item.itemSubtotal.toLocaleString('en-IN')}
-                  </Text>
+                  {/* Item Subtotal or MOQ Badge */}
+                  {isWholesale ? (
+                    <Text style={[styles.itemSubtotalVal, { color: '#1A1918', fontSize: 12 }]}>
+                      {item.quantity} Pcs Requested
+                    </Text>
+                  ) : (
+                    <Text style={styles.itemSubtotalVal}>
+                      ₹{item.itemSubtotal.toLocaleString('en-IN')}
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -667,60 +717,78 @@ export const CartScreen: React.FC = () => {
 
             {/* SUMMARY & CHECKOUT BAR */}
             <View style={styles.summaryContainer}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Subtotal ({totalQuantity} items)</Text>
-                <Text style={styles.summaryVal}>₹{subtotal.toLocaleString('en-IN')}</Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>GST (3% Silver Tax)</Text>
-                <Text style={styles.summaryVal}>₹{gstTax.toLocaleString('en-IN')}</Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Shipping Fee</Text>
-                <Text style={styles.shippingFreeText}>
-                  {shippingFee === 0 ? 'FREE' : `₹${shippingFee}`}
-                </Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.grandTotalRow}>
-                <Text style={styles.grandTotalLabel}>Grand Total</Text>
-                <Text style={styles.grandTotalVal}>₹{grandTotal.toLocaleString('en-IN')}</Text>
-              </View>
-
-              {/* WHLESALE BOOKING VS RETAIL WHATSAPP BUTTON */}
               {isWholesale ? (
-                <TouchableOpacity
-                  style={styles.wholesaleBookingBtn}
-                  onPress={handleCheckout}
-                  disabled={loading}
-                  activeOpacity={0.88}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                  ) : (
-                    <>
-                      <Briefcase color="#FFFFFF" size={18} />
-                      <Text style={styles.wholesaleBookingBtnText}>
-                        SUBMIT WHOLESALE BOOKING
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Total Wholesale Items</Text>
+                    <Text style={styles.summaryVal}>{totalQuantity} Items</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Wholesale Pricing Mode</Text>
+                    <Text style={[styles.summaryVal, { color: '#B9A77A' }]}>Official B2B Quote</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Pricing Status</Text>
+                    <Text style={styles.shippingFreeText}>Quote Pending (No Prices)</Text>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <TouchableOpacity
+                    style={[styles.whatsappActionBtn, { backgroundColor: '#25D366', marginBottom: 0 }]}
+                    onPress={handleWhatsAppOrder}
+                    disabled={loading}
+                    activeOpacity={0.88}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <>
+                        <MessageCircle color="#FFFFFF" size={20} />
+                        <Text style={styles.whatsappActionBtnText}>
+                          BOOK WHOLESALE VIA WHATSAPP
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
               ) : (
-                <TouchableOpacity
-                  style={[styles.whatsappActionBtn, { marginBottom: 0 }]}
-                  onPress={handleWhatsAppOrder}
-                  activeOpacity={0.85}
-                >
-                  <MessageCircle color="#FFFFFF" size={20} />
-                  <Text style={styles.whatsappActionBtnText}>
-                    ORDER RETAIL CART ON WHATSAPP
-                  </Text>
-                </TouchableOpacity>
+                <>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Subtotal ({totalQuantity} items)</Text>
+                    <Text style={styles.summaryVal}>₹{subtotal.toLocaleString('en-IN')}</Text>
+                  </View>
+
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>GST (3% Silver Tax)</Text>
+                    <Text style={styles.summaryVal}>₹{gstTax.toLocaleString('en-IN')}</Text>
+                  </View>
+
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Shipping Fee</Text>
+                    <Text style={styles.shippingFreeText}>
+                      {shippingFee === 0 ? 'FREE' : `₹${shippingFee}`}
+                    </Text>
+                  </View>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.grandTotalRow}>
+                    <Text style={styles.grandTotalLabel}>Grand Total</Text>
+                    <Text style={styles.grandTotalVal}>₹{grandTotal.toLocaleString('en-IN')}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.whatsappActionBtn, { marginBottom: 0 }]}
+                    onPress={handleWhatsAppOrder}
+                    activeOpacity={0.85}
+                  >
+                    <MessageCircle color="#FFFFFF" size={20} />
+                    <Text style={styles.whatsappActionBtnText}>
+                      ORDER RETAIL CART ON WHATSAPP
+                    </Text>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           </>

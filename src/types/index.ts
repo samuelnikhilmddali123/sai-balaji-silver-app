@@ -25,6 +25,8 @@ export interface ProductVariant {
   wholesale_price?: number;
   sku?: string;
   stock?: number;
+  in_stock?: boolean;
+  is_active?: boolean;
   dimensions?: string;
   height?: string;
   diameter?: string;
@@ -47,6 +49,7 @@ export interface Product {
   is_featured: boolean;
   is_new_arrival: boolean;
   stock: number;
+  in_stock?: boolean;
   images?: string[];
   featured_image?: string;
   image_url?: string;

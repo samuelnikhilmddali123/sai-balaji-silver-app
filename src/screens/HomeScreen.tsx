@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowRight, Check, Sparkles, Briefcase, Award, ShieldCheck, Truck } from 'lucide-react-native';
+import { ArrowRight, Check, Sparkles, Briefcase, Award, ShieldCheck, Truck, Factory, Users } from 'lucide-react-native';
 import { catalogApi, getFullImageUrl } from '../services/api';
 
 const DEFAULT_MAIN_CATEGORIES = [
@@ -19,34 +19,53 @@ const DEFAULT_MAIN_CATEGORIES = [
     id: 1,
     name: 'Silver Pooja Articles',
     slug: 'silver-pooja-articles',
-    description: 'Sacred 925 sterling & 999 fine silver ritual essentials, deepams, thalis, and puja accessories.',
+    description: 'Sacred silver ritual essentials, deepams, thalis, and puja accessories.',
     subcategories_count: 4,
     image_url: '/public/Saibalaji products S/Floral Engraved Silver Pooja Thali Set.webp',
   },
   {
     id: 2,
-    name: 'Silver Dining & Tableware',
+    name: 'Silver Dinner Sets & Tableware',
     slug: 'silver-dining-tableware',
-    description: 'Luxury 925 sterling dinner sets, tumblers, bowls, trays, and royal silverware.',
+    description: 'Premium silver dinner sets, tumblers, bowls, trays, and tableware.',
     subcategories_count: 5,
     image_url: '/public/Saibalaji products S/Royal Floral Crest Silver Serving Tray.webp',
   },
   {
     id: 3,
-    name: 'Silver God & Temple Items',
+    name: 'Silver Gift Articles',
     slug: 'silver-god-temple-items',
-    description: 'Hand-crafted 999 fine silver deities, sanctum adornments, frames, and temple accessories.',
+    description: 'Silver gift articles, deities, frames, decorative keepsakes, and tokens.',
     subcategories_count: 2,
     image_url: '/public/Saibalaji products S/Elegant Silver Lakshmi Devi Idol with Ornate Arch.webp',
   },
   {
     id: 4,
-    name: 'Silver Wedding & Return Gifts',
+    name: 'Wedding & Traditional Silver Articles',
     slug: 'silver-wedding-return-gifts',
-    description: 'Memorable silver keepsakes, return gift sets, engraved storage boxes, and custom wedding tokens.',
+    description: 'Traditional silver articles, wedding cards, return gift sets, and custom items.',
     subcategories_count: 2,
     image_url: '/public/Saibalaji products S/Shree Divya Silver Masala Box Set.webp',
   },
+];
+
+const WHO_WE_SERVE_LIST = [
+  'WHOLESALERS',
+  'RETAILERS',
+  'JEWELLERY STORES',
+  'SILVER ARTICLE DEALERS',
+  'GIFT & LIFESTYLE BUSINESSES',
+  'WEDDING & EVENT BUSINESSES',
+  'INSTITUTIONAL & CORPORATE BUYERS',
+];
+
+const MANUFACTURING_STEPS = [
+  'DESIGN',
+  'DEVELOPMENT',
+  'MANUFACTURING',
+  'FINISHING',
+  'QUALITY INSPECTION',
+  'FINAL DISPATCH',
 ];
 
 export const HomeScreen: React.FC = () => {
@@ -83,26 +102,26 @@ export const HomeScreen: React.FC = () => {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* HERO CONTENT CONTAINER */}
+        {/* 1. HERO / TOP HOME SECTION */}
         <View style={styles.heroContainer}>
           {/* Eyebrow Pill */}
           <View style={styles.eyebrowPill}>
             <View style={styles.eyebrowDot} />
-            <Text style={styles.eyebrowPillText}>EST. 2019  • TENALI, INDIA</Text>
+            <Text style={styles.eyebrowPillText}>EST. 2019  • TENALI, ANDHRA PRADESH</Text>
           </View>
 
           {/* Sub Header */}
-          <Text style={styles.brandSubHeader}>SAI BALAJI SILVER</Text>
+          <Text style={styles.brandSubHeader}>SAI BALAJI SILVER WORKS</Text>
 
           {/* Hero Title Lockup */}
           <View style={styles.titleLockup}>
-            <Text style={styles.heroTitleMain}>CRAFTED IN</Text>
-            <Text style={styles.heroTitleNavy}>PURE SILVER.</Text>
+            <Text style={styles.heroTitleMain}>Crafting SILVER.</Text>
+            <Text style={styles.heroTitleNavy}>Creating TRUST.</Text>
           </View>
 
           {/* Body Paragraph */}
           <Text style={styles.heroSubtitle}>
-            Three decades of South Indian craftsmanship, metallurgical precision and 100% NABL-certified silver — shaped in Tenali.
+            Premium silver articles manufactured with precision for wholesale and business customers across India.
           </Text>
 
           {/* Checkmark Features Row */}
@@ -123,7 +142,7 @@ export const HomeScreen: React.FC = () => {
 
             <View style={styles.certBadge}>
               <Check size={14} color="#B5985B" strokeWidth={2.5} />
-              <Text style={styles.certText}>NABL HALLMARKED</Text>
+              <Text style={styles.certText}>WHOLESALE B2B</Text>
             </View>
           </View>
 
@@ -133,20 +152,20 @@ export const HomeScreen: React.FC = () => {
             onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
             activeOpacity={0.88}
           >
-            <Text style={styles.exploreBtnText}>EXPLORE COLLECTION</Text>
+            <Text style={styles.exploreBtnText}>EXPLORE PRODUCTS</Text>
             <ArrowRight size={16} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
 
-          {/* Secondary SHOP SILVER Button */}
+          {/* Secondary Button */}
           <TouchableOpacity
             style={styles.shopSilverBtn}
-            onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
+            onPress={() => navigation.navigate('MainTabs', { screen: 'Wholesale' })}
             activeOpacity={0.88}
           >
-            <Text style={styles.shopSilverBtnText}>SHOP SILVER</Text>
+            <Text style={styles.shopSilverBtnText}>WHOLESALE ENQUIRY</Text>
           </TouchableOpacity>
 
-          {/* HERO SHOWCASE CARD FRAME WITH DEITY IDOL IMAGE */}
+          {/* HERO SHOWCASE CARD FRAME */}
           <View style={styles.showcaseFrame}>
             <View style={styles.innerShowcaseCard}>
               <Image
@@ -158,72 +177,75 @@ export const HomeScreen: React.FC = () => {
               {/* Floating Pill Badge */}
               <View style={styles.floatingBadge}>
                 <Sparkles size={15} color="#B5985B" />
-                <Text style={styles.floatingBadgeText}>999 Fine Silver Deity Idol</Text>
+                <Text style={styles.floatingBadgeText}>Manufactured in Tenali, AP</Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* BRAND STORY SECTION — EXACT MATCH FOR USER IMAGE */}
+        {/* 2. INTRODUCTION SECTION */}
         <View style={styles.brandStorySection}>
           <Text style={styles.brandStoryEyebrow}>THE HOUSE OF SAI BALAJI</Text>
           <Text style={styles.brandStoryHeading}>
-            Mastering the art of silver through generations of purity.
+            Manufacturing Excellence in Silver.
           </Text>
           <Text style={styles.brandStoryBody}>
-            From Tenali to patrons across India, Sai Balaji Silverworks brings together generations of craftsmanship, purity and precision. Operating from our specialized manufacturing atelier, we bridge classical deity sculpting with NABL-certificated 999 fine & 925 sterling silver formulations.
+            Established in 2019, Sai Balaji Silver Works combines traditional craftsmanship with modern manufacturing technology to produce high-quality silver articles with precision, consistency, and dependable service.
           </Text>
           <View style={styles.brandStoryDivider} />
         </View>
 
-        {/* SILVER PURITY & CERTIFICATION SECTION — EXACT MATCH FOR USER IMAGE */}
+        {/* 3. STATS / HIGHLIGHTS SECTION */}
         <View style={styles.puritySection}>
           <Text style={styles.purityEyebrow}>
-            GUARANTEED METALLURGICAL{'\n'}EXCELLENCE
+            MANUFACTURING HIGHLIGHTS
           </Text>
-          <Text style={styles.purityHeading}>Silver Purity & Certification</Text>
+          <Text style={styles.purityHeading}>Built for Quality & Scale</Text>
 
           <View style={styles.purityCardsRow}>
-            {/* CARD 1: 999 FINE SILVER */}
+            {/* CARD 1: ESTABLISHED */}
             <View style={styles.purityCard}>
-              <Text style={styles.purityNumber}>999</Text>
-              <Text style={styles.purityTag}>FINE SILVER</Text>
+              <Text style={styles.purityNumber}>2019</Text>
+              <Text style={styles.purityTag}>ESTABLISHED</Text>
               <Text style={styles.purityDesc}>
-                Pure 99.9% fine silver for temple idols, sacred pooja articles, thalis, and investment bullion.
+                Combining traditional craftsmanship with modern manufacturing technology.
               </Text>
             </View>
 
-            {/* CARD 2: 925 STERLING SILVER */}
+            {/* CARD 2: PRODUCT VARIETIES */}
             <View style={styles.purityCard}>
-              <Text style={styles.purityNumber}>925</Text>
-              <Text style={styles.purityTag}>STERLING SILVER</Text>
+              <Text style={styles.purityNumber}>200+</Text>
+              <Text style={styles.purityTag}>PRODUCT VARIETIES</Text>
               <Text style={styles.purityDesc}>
-                Precision 92.5% sterling silver for durable dining tableware, baby gifts, and fine ornaments.
+                A diverse range of silver products for different business requirements.
               </Text>
             </View>
 
-            {/* CARD 3: 7+ YEARS OF LEGACY */}
+            {/* CARD 3: PAN INDIA B2B SERVICE */}
             <View style={styles.purityCard}>
-              <Text style={styles.purityNumber}>7+</Text>
-              <Text style={styles.purityTag}>YEARS OF LEGACY</Text>
+              <Text style={styles.purityNumber}>PAN INDIA</Text>
+              <Text style={styles.purityTag}>B2B SERVICE</Text>
               <Text style={styles.purityDesc}>
-                Established South Indian silver manufacturing atelier based in Tenali, Andhra Pradesh.
+                Serving wholesalers, retailers, jewellery businesses and bulk buyers across India.
               </Text>
             </View>
           </View>
         </View>
 
-        {/* SILVER COLLECTIONS SECTION — EXACT MATCH FOR USER IMAGE */}
+        {/* 4. PRODUCT SECTION */}
         <View style={styles.collectionsSection}>
-          <Text style={styles.collectionsEyebrow}>EXPLORE BY CATEGORY</Text>
-          <Text style={styles.collectionsHeading}>Silver Collections</Text>
+          <Text style={styles.collectionsEyebrow}>EXPLORE OUR COLLECTION</Text>
+          <Text style={styles.collectionsHeading}>Silver Products for Every Occasion.</Text>
+          <Text style={styles.sectionSubtitle}>
+            Explore our wide range of premium silver articles for gifting, weddings, pooja, religious, household and traditional requirements.
+          </Text>
 
           <TouchableOpacity
             style={styles.viewCategoriesBtn}
             onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
             activeOpacity={0.8}
           >
-            <Text style={styles.viewCategoriesText}>VIEW CATEGORIES</Text>
+            <Text style={styles.viewCategoriesText}>EXPLORE PRODUCTS</Text>
             <ArrowRight size={15} color="#B5985B" strokeWidth={2.2} />
           </TouchableOpacity>
 
@@ -266,16 +288,16 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* B2B / WHOLESALE SECTION — EXACT MATCH FOR USER IMAGE */}
+        {/* 5. WHOLESALE SECTION */}
         <View style={styles.wholesaleSection}>
           <Text style={styles.wholesaleEyebrow}>
             INDIVIDUAL • CUSTOM • WHOLESALE
           </Text>
           <Text style={styles.wholesaleHeading}>
-            From individual bespoke pieces to large-scale B2B wholesale requirements.
+            Built for Businesses. Crafted for Scale.
           </Text>
           <Text style={styles.wholesaleBody}>
-            Supplying leading South Indian jewellery showrooms, temples, and corporate institutions with customized silver minting, 999 bullion bars, and bulk retail stock with ReportLab PDF quotation support.
+            From customized products to large-scale wholesale requirements, we provide reliable silver manufacturing solutions tailored to your business needs.
           </Text>
 
           <TouchableOpacity
@@ -288,58 +310,122 @@ export const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* UNCOMPROMISING STANDARDS SECTION */}
+        {/* 6. MANUFACTURING SECTION */}
+        <View style={styles.manufacturingSection}>
+          <Text style={styles.manufacturingEyebrow}>OUR MANUFACTURING</Text>
+          <Text style={styles.manufacturingHeading}>From Design to Finished Product.</Text>
+          <Text style={styles.manufacturingBody}>
+            Traditional craftsmanship meets modern manufacturing technology to deliver precision, consistency, productivity and superior finishing.
+          </Text>
+
+          <View style={styles.processContainer}>
+            {MANUFACTURING_STEPS.map((step, idx) => (
+              <React.Fragment key={step}>
+                <View style={styles.processBadge}>
+                  <Text style={styles.processText}>{step}</Text>
+                </View>
+                {idx < MANUFACTURING_STEPS.length - 1 && (
+                  <Text style={styles.processArrow}>→</Text>
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+        </View>
+
+        {/* 7. WHY CHOOSE US SECTION */}
         <View style={styles.standardsSection}>
-          <Text style={styles.standardsEyebrow}>UNCOMPROMISING STANDARDS</Text>
-          <Text style={styles.standardsHeading}>Why Sai Balaji Silverworks</Text>
+          <Text style={styles.standardsEyebrow}>WHY SAI BALAJI SILVER WORKS</Text>
+          <Text style={styles.standardsHeading}>A Manufacturing Partner You Can Trust.</Text>
 
           <View style={styles.standardsCardsContainer}>
-            {/* CARD 1: 100% AUTHENTIC SILVER */}
+            {/* CARD 1 */}
             <View style={styles.standardCard}>
               <Award size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
-              <Text style={styles.standardCardTitle}>100% Authentic Silver</Text>
+              <Text style={styles.standardCardTitle}>200+ Product Varieties</Text>
               <Text style={styles.standardCardBody}>
-                NABL spectrometry assayed 999 fine silver and 925 sterling formulations.
+                A diverse range of silver products for different business requirements.
               </Text>
             </View>
 
-            {/* CARD 2: MASTER CRAFTSMANSHIP */}
+            {/* CARD 2 */}
+            <View style={styles.standardCard}>
+              <Factory size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
+              <Text style={styles.standardCardTitle}>Modern Manufacturing</Text>
+              <Text style={styles.standardCardBody}>
+                Advanced machinery and technology combined with experienced craftsmanship.
+              </Text>
+            </View>
+
+            {/* CARD 3 */}
             <View style={styles.standardCard}>
               <ShieldCheck size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
-              <Text style={styles.standardCardTitle}>Master Craftsmanship</Text>
+              <Text style={styles.standardCardTitle}>Precision & Consistency</Text>
               <Text style={styles.standardCardBody}>
-                Ancestral South Indian temple idol sculpting & Nakshi relief carving.
+                Systematic manufacturing focused on accurate and consistent output.
               </Text>
             </View>
 
-            {/* CARD 3: ANTI-TARANISH COATING */}
+            {/* CARD 4 */}
             <View style={styles.standardCard}>
               <Sparkles size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
-              <Text style={styles.standardCardTitle}>Anti-Tarnish Coating</Text>
+              <Text style={styles.standardCardTitle}>Customization</Text>
               <Text style={styles.standardCardBody}>
-                Nano protective barrier preserves mirror-bright specular shine for years.
+                Products developed according to specific design and business requirements.
               </Text>
             </View>
 
-            {/* CARD 4: INSURED SAFE SHIPPING */}
+            {/* CARD 5 */}
+            <View style={styles.standardCard}>
+              <Briefcase size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
+              <Text style={styles.standardCardTitle}>Wholesale Focus</Text>
+              <Text style={styles.standardCardBody}>
+                Serving wholesalers, retailers, jewellery businesses and bulk buyers.
+              </Text>
+            </View>
+
+            {/* CARD 6 */}
             <View style={styles.standardCard}>
               <Truck size={30} color="#B5985B" strokeWidth={1.4} style={{ marginBottom: 14 }} />
-              <Text style={styles.standardCardTitle}>Insured Safe Shipping</Text>
+              <Text style={styles.standardCardTitle}>Reliable Service</Text>
               <Text style={styles.standardCardBody}>
-                Tamper-evident luxury packaging and insured dispatch across India.
+                Professional service, transparent communication and dependable delivery.
               </Text>
             </View>
           </View>
         </View>
 
-        {/* CRAFTED TO LAST BANNER SECTION — EXACT MATCH FOR USER IMAGE */}
+        {/* 8. QUALITY SECTION */}
+        <View style={styles.qualitySection}>
+          <Text style={styles.qualityEyebrow}>OUR QUALITY COMMITMENT</Text>
+          <Text style={styles.qualityHeading}>Quality That Builds Lasting Trust.</Text>
+          <Text style={styles.qualityBody}>
+            We focus on consistency in purity, weight, dimensions, finishing, detailing and overall workmanship. Every product undergoes appropriate quality checks before dispatch.
+          </Text>
+        </View>
+
+        {/* 9. CUSTOMERS / BUSINESS SECTION */}
+        <View style={styles.customersSection}>
+          <Text style={styles.customersEyebrow}>WHO WE SERVE</Text>
+          <Text style={styles.customersHeading}>Your Trusted Silver Manufacturing Partner.</Text>
+
+          <View style={styles.customerGrid}>
+            {WHO_WE_SERVE_LIST.map((item) => (
+              <View key={item} style={styles.customerChip}>
+                <Users size={14} color="#B5985B" />
+                <Text style={styles.customerChipText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 10. FINAL HOME CTA */}
         <View style={styles.craftedBannerSection}>
-          <Text style={styles.craftedEyebrow}>CRAFTED TO LAST • CREATED IN SILVER</Text>
-          <Text style={styles.craftedHeadingMain}>Discover Pure Silver</Text>
-          <Text style={styles.craftedHeadingItalic}>Crafted for Generations.</Text>
+          <Text style={styles.craftedEyebrow}>YOUR VISION • OUR CRAFTSMANSHIP</Text>
+          <Text style={styles.craftedHeadingMain}>Your Vision.</Text>
+          <Text style={styles.craftedHeadingItalic}>Our Craftsmanship.</Text>
 
           <Text style={styles.craftedBody}>
-            Browse our hallmarked deity idols, dining tableware, pooja thalis, and custom minting options.
+            Connect with us for wholesale enquiries, bulk orders, customized requirements and business partnerships.
           </Text>
 
           <View style={styles.craftedBtnRow}>
@@ -348,7 +434,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => navigation.navigate('MainTabs', { screen: 'Categories' })}
               activeOpacity={0.88}
             >
-              <Text style={styles.craftedExploreBtnText}>EXPLORE COLLECTIONS →</Text>
+              <Text style={styles.craftedExploreBtnText}>EXPLORE PRODUCTS →</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -619,7 +705,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B5985B',
     marginTop: 32,
   },
-  // PURITY SECTION STYLING
+  // PURITY / STATS SECTION STYLING
   puritySection: {
     width: '100%',
     backgroundColor: '#FAF8F5',
@@ -666,7 +752,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   purityNumber: {
-    fontSize: 46,
+    fontSize: 42,
     fontFamily: Platform.select({
       ios: 'BodoniModa_400Regular',
       android: 'BodoniModa_400Regular',
@@ -718,6 +804,14 @@ const styles = StyleSheet.create({
     color: '#202020',
     textAlign: 'center',
     marginBottom: 14,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#555555',
+    textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 550,
+    marginBottom: 18,
   },
   viewCategoriesBtn: {
     flexDirection: 'row',
@@ -870,10 +964,74 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2.2,
   },
-  // UNCOMPROMISING STANDARDS SECTION STYLING
-  standardsSection: {
+  // MANUFACTURING SECTION STYLING
+  manufacturingSection: {
     width: '100%',
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingVertical: 44,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#EAE6DF',
+  },
+  manufacturingEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  manufacturingHeading: {
+    fontSize: 28,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  manufacturingBody: {
+    fontSize: 14,
+    color: '#555555',
+    lineHeight: 23,
+    textAlign: 'center',
+    maxWidth: 550,
+    marginBottom: 24,
+  },
+  processContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  processBadge: {
+    backgroundColor: '#FAF7F2',
+    borderWidth: 1,
+    borderColor: '#EAE4D9',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  processText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#202020',
+    letterSpacing: 1.2,
+  },
+  processArrow: {
+    fontSize: 14,
+    color: '#B5985B',
+    fontWeight: '700',
+  },
+  // STANDARDS SECTION STYLING
+  standardsSection: {
+    width: '100%',
+    backgroundColor: '#FAF8F5',
     paddingHorizontal: 22,
     paddingVertical: 44,
     alignItems: 'center',
@@ -904,13 +1062,18 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   standardCard: {
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#EAE4D9',
+    borderColor: '#E6E1D8',
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingVertical: 28,
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   standardCardTitle: {
     fontSize: 20,
@@ -929,10 +1092,99 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 21,
   },
+  // QUALITY SECTION STYLING
+  qualitySection: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 44,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#EAE6DF',
+  },
+  qualityEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  qualityHeading: {
+    fontSize: 28,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  qualityBody: {
+    fontSize: 14,
+    color: '#555555',
+    lineHeight: 24,
+    textAlign: 'center',
+    maxWidth: 550,
+  },
+  // CUSTOMERS / WHO WE SERVE SECTION STYLING
+  customersSection: {
+    width: '100%',
+    backgroundColor: '#FAF8F5',
+    paddingHorizontal: 22,
+    paddingVertical: 44,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#EAE6DF',
+  },
+  customersEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B5985B',
+    letterSpacing: 3.5,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  customersHeading: {
+    fontSize: 28,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#202020',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  customerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  customerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E6E1D8',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
+  },
+  customerChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#202020',
+    letterSpacing: 1.5,
+  },
   // CRAFTED TO LAST BANNER SECTION STYLING
   craftedBannerSection: {
     width: '100%',
-    backgroundColor: '#FAF8F5',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 24,
     paddingVertical: 52,
     alignItems: 'center',

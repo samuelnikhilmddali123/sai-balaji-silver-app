@@ -301,7 +301,8 @@ export const WholesaleScreen: React.FC = () => {
       <ProductCard
         product={item}
         width={itemWidth}
-        onPress={() => navigation.navigate('ProductDetail', { product: item })}
+        isWholesale={true}
+        onPress={() => navigation.navigate('ProductDetail', { product: item, isWholesale: true })}
       />
     </View>
   );

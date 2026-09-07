@@ -6,16 +6,20 @@ import { getProductImageUrl } from '../services/api';
 import { useWishlist } from '../context/WishlistContext';
 import { useSilverRate } from '../context/SilverRateContext';
 
+import { isProductFullyOutOfStock } from '../utils/stock';
+
 interface ProductCardProps {
   product: Product;
   onPress?: () => void;
   width?: number;
+  isWholesale?: boolean;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, width }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, width, isWholesale }) => {
   const { toggleWishlist, isInWishlist } = useWishlist();
   const { calculateCurrentPrice } = useSilverRate();
   const inWishlist = isInWishlist(product.id);
+  const isOutOfStock = isProductFullyOutOfStock(product);
 
   const categoryName = product.subcategory
     ? `${(product.category_slug || 'Silver').replace(/-/g, ' ').toUpperCase()} • ${product.subcategory.toUpperCase()}`
@@ -40,9 +44,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
       <View style={styles.imageContainer}>
         <Image
           source={{ uri: getProductImageUrl(product) }}
-          style={styles.image}
+          style={[styles.image, isOutOfStock ? { opacity: 0.6 } : undefined]}
           resizeMode="cover"
         />
+
+        {/* Out of Stock Overlay Badge */}
+        {isOutOfStock && (
+          <View style={styles.outOfStockBadge}>
+            <Text style={styles.outOfStockBadgeText}>OUT OF STOCK</Text>
+          </View>
+        )}
 
         {/* Floating Heart / Wishlist Button */}
         <TouchableOpacity
@@ -81,25 +92,48 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
         {/* Thin Divider Line */}
         <View style={styles.divider} />
 
-        {/* Price Row with FROM & Live Badge */}
-        <View style={styles.priceRow}>
-          <View style={styles.fromRow}>
-            <Text style={styles.fromText}>FROM</Text>
-            <View style={styles.liveBadge}>
-              <Text style={styles.liveBadgeText}>Live</Text>
+        {/* Price / Wholesale Row */}
+        {isWholesale ? (
+          <View style={styles.wholesaleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.wholesaleLabel}>PRICING</Text>
+              <Text style={styles.wholesaleVal}>Quote on Request</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.wholesaleLabel}>MOQ</Text>
+              <Text style={styles.wholesaleVal}>5 Pcs</Text>
             </View>
           </View>
-          <Text style={styles.priceValue}>₹{priceVal}</Text>
-        </View>
+        ) : (
+          <View style={styles.priceRow}>
+            <View style={styles.fromRow}>
+              <Text style={styles.fromText}>FROM</Text>
+              <View style={styles.liveBadge}>
+                <Text style={styles.liveBadgeText}>Live</Text>
+              </View>
+            </View>
+            <Text style={styles.priceValue}>₹{priceVal}</Text>
+          </View>
+        )}
 
-        {/* Full-width VIEW DETAILS Button */}
-        <TouchableOpacity
-          style={styles.viewDetailsBtn}
-          onPress={onPress}
-          activeOpacity={0.88}
-        >
-          <Text style={styles.viewDetailsText}>VIEW DETAILS</Text>
-        </TouchableOpacity>
+        {/* Full-width Action Button */}
+        {isOutOfStock ? (
+          <TouchableOpacity
+            style={styles.outOfStockBtn}
+            onPress={onPress}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.outOfStockBtnText}>OUT OF STOCK</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.viewDetailsBtn}
+            onPress={onPress}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.viewDetailsText}>VIEW DETAILS</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -212,6 +246,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  wholesaleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 4,
+    minHeight: 34,
+  },
+  wholesaleLabel: {
+    color: '#B9A77A',
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  wholesaleVal: {
+    color: '#111111',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 1,
+  },
   viewDetailsBtn: {
     backgroundColor: '#1A1918',
     borderRadius: 12,
@@ -225,5 +278,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,
+  },
+  outOfStockBtn: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  outOfStockBtnText: {
+    color: '#8C95A3',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  outOfStockBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: '#C53030',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 2,
+  },
+  outOfStockBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 });
