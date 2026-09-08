@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "692516345900-7g4cs08iuq45teemogsj8vjcp5qthgla.apps.googleusercontent.com",
+          "client_id": "692516345900-gq1m8ticm3nu807egi43e9rcamtamj3d.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.saibalajiecommerce",
-            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+            "certificate_hash": "6eb11ace761def8b7bcd5ac525f5eb7c91d71ebf"
           }
         },
         {

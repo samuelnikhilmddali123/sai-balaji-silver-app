@@ -138,14 +138,55 @@ export const ProductDetailScreen: React.FC = () => {
   const liveSilverRate = rateData.live_silver_rate || 250.64;
   const purityFactor = isFineSilver999 ? 1.0 : 0.925;
 
-  // Available variants from product or default standard
+  // Available variants from product or generated dynamically matching product weight & making charges
   const availableVariants = useMemo<MeasurementVariant[]>(() => {
+    const prodMC =
+      (product as any).making_charges !== undefined
+        ? parseFloat(String((product as any).making_charges))
+        : (product as any).making_charge !== undefined
+        ? parseFloat(String((product as any).making_charge))
+        : 0;
+
+    const baseW = product.weight_g || 250;
+    const baseMC = prodMC;
+    const baseMcType = (product as any).making_charge_type || 'fixed';
+
     const rawVariants = product.variants || (product as any).sizes;
     if (Array.isArray(rawVariants) && rawVariants.length > 0) {
       return rawVariants.map((v: any, index: number) => {
-        const vWeight = parseFloat(String(v.weight_g || v.weight || product.weight_g || 250)) || 250;
-        const vName = v.size || v.name || v.label || (v.dimensions ? v.dimensions : `${vWeight}g`);
-        const vMaking = v.making_charge !== undefined ? parseFloat(String(v.making_charge)) : undefined;
+        const vWeight = parseFloat(String(v.weight_g || v.weight || v.net_weight_g || baseW)) || baseW;
+        const rawMeasurement = v.measurement || v.size || v.name || v.label || v.dimensions;
+        let vName = rawMeasurement ? String(rawMeasurement).trim() : `${vWeight}g`;
+        if (vName === '1' || vName === '1.0' || vName === '1 (300g)' || vName === '1 (400g)') {
+          vName = `${vWeight}g`;
+        } else if (vName.startsWith('1 ') || vName.startsWith('1(')) {
+          vName = vName.replace(/^1\s*\(/, '(').replace(/^1\s+/, '').trim();
+          if (vName.startsWith('(') && vName.endsWith(')')) {
+            vName = vName.slice(1, -1).trim();
+          }
+        }
+        if (vName === '8' || vName === '8in') vName = '8 inch';
+        if (!vName || vName === '1') vName = `${vWeight}g`;
+
+        const vMaking = v.making_charge !== undefined && v.making_charge !== null ? parseFloat(String(v.making_charge)) : baseMC;
+        const vMakingType = v.making_charge_type || v.making_type || baseMcType;
+
+        let parsedInStock: boolean | undefined = undefined;
+        if (v.in_stock !== undefined && v.in_stock !== null) {
+          if (typeof v.in_stock === 'boolean') parsedInStock = v.in_stock;
+          else if (typeof v.in_stock === 'number') parsedInStock = v.in_stock > 0;
+          else if (typeof v.in_stock === 'string') {
+            const s = v.in_stock.trim().toLowerCase();
+            parsedInStock = s !== 'false' && s !== '0' && s !== 'off' && s !== 'out_of_stock';
+          }
+        }
+
+        let parsedStock: number | undefined = undefined;
+        if (v.stock !== undefined && v.stock !== null && v.stock !== '') {
+          const num = parseFloat(String(v.stock));
+          if (!isNaN(num)) parsedStock = num;
+        }
+
         return {
           id: String(v.id || `v-${index}`),
           name: vName,
@@ -153,14 +194,58 @@ export const ProductDetailScreen: React.FC = () => {
           height_in: v.height || v.height_in,
           diameter_in: v.diameter || v.diameter_in,
           making_charge: vMaking,
-          making_type: v.making_type || 'fixed',
+          making_type: vMakingType as any,
           sku_suffix: v.sku ? `-${v.sku}` : `-${index + 1}`,
-          stock: v.stock !== undefined ? parseFloat(String(v.stock)) : undefined,
-          in_stock: v.in_stock !== undefined ? Boolean(v.in_stock) : undefined,
+          stock: parsedStock,
+          in_stock: parsedInStock,
+          raw_variant: v,
         };
       });
     }
-    return DEFAULT_MEASUREMENT_VARIANTS;
+
+    // Default variants derived dynamically from product weight & making charges (matching web ProductDetail.tsx)
+    return [
+      {
+        id: 'v-default-1',
+        name: `${baseW}g`,
+        weight_g: baseW,
+        making_charge: baseMC,
+        making_type: baseMcType,
+        sku_suffix: `-${baseW}G`,
+        stock: product.stock,
+        in_stock: product.in_stock,
+      },
+      {
+        id: 'v-default-2',
+        name: `${Math.round(baseW * 1.6)}g`,
+        weight_g: Math.round(baseW * 1.6),
+        making_charge: Math.round(baseMC * 1.5 * 100) / 100,
+        making_type: baseMcType,
+        sku_suffix: `-${Math.round(baseW * 1.6)}G`,
+        stock: product.stock,
+        in_stock: product.in_stock,
+      },
+      {
+        id: 'v-default-3',
+        name: `${Math.round(baseW * 2.5)}g`,
+        weight_g: Math.round(baseW * 2.5),
+        making_charge: Math.round(baseMC * 2.2 * 100) / 100,
+        making_type: baseMcType,
+        sku_suffix: `-${Math.round(baseW * 2.5)}G`,
+        stock: product.stock,
+        in_stock: product.in_stock,
+      },
+      {
+        id: 'v-default-4',
+        name: `${Math.round(baseW * 4.0)}g`,
+        weight_g: Math.round(baseW * 4.0),
+        making_charge: Math.round(baseMC * 3.5 * 100) / 100,
+        making_type: baseMcType,
+        sku_suffix: `-${Math.round(baseW * 4.0)}G`,
+        stock: product.stock,
+        in_stock: product.in_stock,
+      },
+    ];
   }, [product]);
 
   // Current active variant (always defaults to 1st variant from availableVariants)
@@ -169,24 +254,32 @@ export const ProductDetailScreen: React.FC = () => {
       const found = availableVariants.find((v) => v.id === selectedVariantId);
       if (found) return found;
     }
-    return availableVariants[0] || DEFAULT_MEASUREMENT_VARIANTS[0];
-  }, [availableVariants, selectedVariantId]);
+    return availableVariants[0] || { weight_g: product.weight_g || 250, making_charge: (product as any).making_charges || (product as any).making_charge || 0, making_type: 'fixed', name: `${product.weight_g || 250}g` };
+  }, [availableVariants, selectedVariantId, product]);
 
   const currentWeight = currentVariant?.weight_g || product.weight_g || 250;
 
+  const currentMakingCharge =
+    currentVariant?.making_charge !== undefined
+      ? currentVariant.making_charge
+      : (product as any).making_charges !== undefined
+      ? parseFloat(String((product as any).making_charges))
+      : (product as any).making_charge !== undefined
+      ? parseFloat(String((product as any).making_charge))
+      : 0;
+
   const breakdown = calculateDynamicPrice(
     currentWeight,
-    currentVariant.making_charge || Math.round(currentWeight * 25),
-    currentVariant.making_type || 'fixed',
+    currentMakingCharge,
+    currentVariant?.making_type || (product as any).making_charge_type || 'fixed',
     purity
   );
 
-  const rawProdPrice = product.retail_price || (product as any).price || (product as any).base_price;
   const silverValue = breakdown.silverValue;
   const makingCharge = breakdown.makingCharge;
-  const finalCalculatedPrice = rawProdPrice && Number(rawProdPrice) > 0 ? Number(rawProdPrice) : breakdown.finalPrice;
+  const finalCalculatedPrice = isWholesale ? breakdown.wholesalePrice : breakdown.finalPrice;
 
-  const currentSku = `${product.sku || 'SBS-DT-003'}${currentVariant.sku_suffix || ''}`;
+  const currentSku = `${product.sku || 'SBS-DT-003'}${currentVariant?.sku_suffix || ''}`;
 
   // Check if current variant is in cart
   const cartItem = cart.find(
@@ -200,7 +293,7 @@ export const ProductDetailScreen: React.FC = () => {
   // Stock Availability Calculation
   const isProductOutOfStock = isProductFullyOutOfStock(product);
   const isVariantOutOfStockActive = isVariantOutOfStock(currentVariant as any, product);
-  const isOutOfStock = product.in_stock === false || (product.in_stock as any) === 'false' || isVariantOutOfStockActive;
+  const isOutOfStock = isProductOutOfStock || isVariantOutOfStockActive;
 
   // Handlers
   const handleAddToCart = () => {
@@ -459,8 +552,11 @@ export const ProductDetailScreen: React.FC = () => {
             <View style={styles.measurementHeader}>
               <Text style={styles.measurementTitle}>SELECT MEASUREMENT / SIZE:</Text>
               <Text style={styles.activeMeasurementSubtitle}>
-                {currentVariant.name}
-                {currentVariant.name.toLowerCase().includes('g') ? '' : ` (${currentWeight}g)`}
+                {(() => {
+                  let nameToShow = (currentVariant?.name || `${currentWeight}g`).replace(/^1\s+/, '').replace(/^1\s*\(/, '(').trim();
+                  if (nameToShow === '1' || nameToShow === '1.0' || !nameToShow) nameToShow = `${currentWeight}g`;
+                  return nameToShow.toLowerCase().includes('g') ? nameToShow : `${nameToShow} (${currentWeight}g)`;
+                })()}
               </Text>
             </View>
 
@@ -472,20 +568,25 @@ export const ProductDetailScreen: React.FC = () => {
               {availableVariants.map((variant) => {
                 const isSelected = currentVariant.id === variant.id;
                 const isVOutOfStock = isVariantOutOfStock(variant as any, product);
-                // Calculate variant price dynamically
+                // Calculate variant price dynamically matching web
                 const vWeight = variant.weight_g;
-                const vSilverVal = vWeight * purityFactor * liveSilverRate;
-                const vMaking = variant.making_charge !== undefined
-                  ? variant.making_charge
-                  : Math.round(vWeight * 25);
-                const vFinalPrice = Math.round(vSilverVal + vMaking);
+                const vCalc = calculateDynamicPrice(
+                  vWeight,
+                  variant.making_charge !== undefined ? variant.making_charge : (product as any).making_charges || (product as any).making_charge || 0,
+                  variant.making_type || (product as any).making_charge_type || 'fixed',
+                  purity
+                );
+                const vFinalPrice = isWholesale ? vCalc.wholesalePrice : vCalc.finalPrice;
 
-                const hasWeightInName = variant.name.toLowerCase().includes('g');
+                // Format pill title (Weight / Name UP) & pill subtext (Price DOWN)
+                let pillTitle = (variant.name || `${vWeight}g`).replace(/^1\s+/, '').replace(/^1\s*\(/, '(').trim();
+                if (pillTitle === '1' || pillTitle === '1.0' || !pillTitle) {
+                  pillTitle = `${vWeight}g`;
+                }
+
                 const subText = isWholesale
-                  ? (hasWeightInName ? `${vWeight}g` : `Net: ${vWeight}g`)
-                  : (hasWeightInName
-                    ? `₹${vFinalPrice.toLocaleString('en-IN')}`
-                    : `₹${vFinalPrice.toLocaleString('en-IN')} (${vWeight}g)`);
+                  ? (pillTitle.toLowerCase().includes('g') ? `${vWeight}g` : `Net: ${vWeight}g`)
+                  : `₹${vFinalPrice.toLocaleString('en-IN')}`;
 
                 const isPillDisabled = isVOutOfStock;
 
@@ -505,7 +606,7 @@ export const ProductDetailScreen: React.FC = () => {
                       isSelected && styles.activeMeasurementPillTitle,
                       isPillDisabled && styles.disabledMeasurementPillTitle,
                     ]}>
-                      {variant.name}{isPillDisabled ? ' (Out of Stock)' : ''}
+                      {pillTitle}{isPillDisabled ? ' (Out of Stock)' : ''}
                     </Text>
                     <Text style={[
                       styles.measurementPillSub,

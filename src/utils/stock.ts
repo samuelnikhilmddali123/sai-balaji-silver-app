@@ -1,37 +1,71 @@
 import { Product, ProductVariant } from '../types';
 
 /**
+ * Robust check if a raw value represents explicit false or out-of-stock
+ */
+const isExplicitlyOutOfStock = (val: any): boolean => {
+  if (
+    val === false ||
+    val === 0 ||
+    val === 'false' ||
+    val === '0' ||
+    val === '0.00' ||
+    val === 'off' ||
+    val === 'no' ||
+    val === 'out_of_stock' ||
+    val === 'OUT_OF_STOCK'
+  ) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Robust check if a stock quantity value is zero or negative
+ */
+const isStockZeroOrNegative = (stockVal: any): boolean => {
+  if (stockVal === undefined || stockVal === null || stockVal === '') return false;
+  const num = Number(stockVal);
+  return !isNaN(num) && num <= 0;
+};
+
+/**
  * Check if a specific product variant is out of stock.
- * If variant has explicit stock set, evaluates variant stock.
- * If parent product has in_stock === false or is_out_of_stock === true, marks as out of stock.
+ * Checks parent product stock condition FIRST, then variant-level stock condition.
  */
 export const isVariantOutOfStock = (variant?: ProductVariant | null, parentProduct?: Product | null): boolean => {
   if (!variant) return false;
 
-  // Check explicit boolean/string in_stock toggle on variant
-  if (variant.in_stock === false || (variant.in_stock as any) === 'false') return true;
-
-  // Check explicit variant stock if defined
-  if (variant.stock !== undefined && variant.stock !== null && !isNaN(Number(variant.stock))) {
-    return Number(variant.stock) <= 0;
-  }
-
-  // Check parent product overall out of stock condition if variant stock is undefined
+  // 1. Check parent product overall out-of-stock condition first
   if (parentProduct) {
     if (
-      parentProduct.in_stock === false ||
-      (parentProduct.in_stock as any) === 'false' ||
-      (parentProduct as any).is_out_of_stock === true
+      isExplicitlyOutOfStock(parentProduct.in_stock) ||
+      isExplicitlyOutOfStock((parentProduct as any).is_out_of_stock) ||
+      (parentProduct as any).status === 'out_of_stock' ||
+      (parentProduct as any).status === 'OUT_OF_STOCK' ||
+      isExplicitlyOutOfStock((parentProduct as any).is_active === false ? false : undefined) ||
+      isStockZeroOrNegative(parentProduct.stock)
     ) {
       return true;
     }
-    if (
-      parentProduct.stock !== undefined &&
-      parentProduct.stock !== null &&
-      Number(parentProduct.stock) <= 0
-    ) {
-      return true;
-    }
+  }
+
+  // 2. Check variant-level out-of-stock flags & stock quantity
+  const rawVar = (variant as any).raw_variant || variant;
+
+  if (
+    isExplicitlyOutOfStock(variant.in_stock) ||
+    isExplicitlyOutOfStock(rawVar.in_stock) ||
+    isExplicitlyOutOfStock((variant as any).is_out_of_stock) ||
+    isExplicitlyOutOfStock((rawVar as any).is_out_of_stock) ||
+    (variant as any).status === 'out_of_stock' ||
+    (variant as any).status === 'OUT_OF_STOCK' ||
+    (rawVar as any).status === 'out_of_stock' ||
+    (rawVar as any).status === 'OUT_OF_STOCK' ||
+    isStockZeroOrNegative(variant.stock) ||
+    isStockZeroOrNegative(rawVar.stock)
+  ) {
+    return true;
   }
 
   return false;
@@ -43,24 +77,33 @@ export const isVariantOutOfStock = (variant?: ProductVariant | null, parentProdu
 export const isProductFullyOutOfStock = (product?: Product | null): boolean => {
   if (!product) return false;
 
-  // Explicit in_stock toggle or is_out_of_stock flag
+  // 1. Check direct parent product out-of-stock flags
   if (
-    product.in_stock === false ||
-    (product.in_stock as any) === 'false' ||
-    (product as any).is_out_of_stock === true
+    isExplicitlyOutOfStock(product.in_stock) ||
+    isExplicitlyOutOfStock((product as any).is_out_of_stock) ||
+    (product as any).status === 'out_of_stock' ||
+    (product as any).status === 'OUT_OF_STOCK'
   ) {
     return true;
   }
 
-  const variantList = product.variants || product.sizes;
+  // 2. Check direct parent product stock quantity
+  if (isStockZeroOrNegative(product.stock)) {
+    return true;
+  }
+
+  // 3. Variant level check: If ALL active variants are out of stock
+  const variantList = product.variants || (product as any).sizes;
   if (Array.isArray(variantList) && variantList.length > 0) {
-    const activeVariants = variantList.filter((v) => v.is_active !== false);
+    const activeVariants = variantList.filter(
+      (v) => v.is_active !== false && (v as any).is_active !== 'false' && (v as any).is_active !== 0
+    );
     if (activeVariants.length > 0) {
       return activeVariants.every((v) => isVariantOutOfStock(v, product));
     }
   }
 
-  return product.stock !== undefined && product.stock !== null && Number(product.stock) <= 0;
+  return false;
 };
 
 /**
@@ -80,16 +123,12 @@ export const getFirstInStockVariant = (
 };
 
 /**
- * Check if a specific item (product + selected variant) is out of stock.
+ * Check if a specific cart item (product + selected variant) is out of stock.
  */
 export const isCartItemOutOfStock = (product?: Product | null, selectedVariant?: ProductVariant | null): boolean => {
   if (!product) return false;
 
-  if (
-    product.in_stock === false ||
-    (product.in_stock as any) === 'false' ||
-    (product.stock !== undefined && Number(product.stock) <= 0 && (!product.variants || product.variants.length === 0))
-  ) {
+  if (isProductFullyOutOfStock(product)) {
     return true;
   }
 
@@ -97,5 +136,5 @@ export const isCartItemOutOfStock = (product?: Product | null, selectedVariant?:
     return isVariantOutOfStock(selectedVariant, product);
   }
 
-  return isProductFullyOutOfStock(product);
+  return false;
 };

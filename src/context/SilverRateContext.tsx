@@ -30,7 +30,8 @@ export interface SilverRateContextType {
     makingCharge: number,
     makingChargeType?: 'fixed' | 'per_gram' | 'percentage',
     purity?: string,
-    wholesaleMakingCharge?: number
+    wholesaleMakingCharge?: number,
+    customRate?: number
   ) => PriceBreakdown;
   calculateCurrentPrice: (target: Product | number | any, baseSilverRate?: number) => number;
   calculateWholesalePrice: (product: Product | any) => number;
@@ -98,7 +99,8 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     makingCharge: number,
     makingChargeType: 'fixed' | 'per_gram' | 'percentage' = 'fixed',
     purity: string = '925',
-    wholesaleMakingCharge?: number
+    wholesaleMakingCharge?: number,
+    customRate?: number
   ): PriceBreakdown => {
     const weight = parseFloat(String(weightGrams)) || 0;
     const mc = parseFloat(String(makingCharge)) || 0;
@@ -107,17 +109,9 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ? parseFloat(String(wholesaleMakingCharge))
         : Math.round(mc * 0.75 * 100) / 100;
 
-    const rate = rateData.live_silver_rate || 250.64;
+    const rate = typeof customRate === 'number' && customRate > 0 ? customRate : rateData.live_silver_rate || 250.64;
 
-    let purityFactor = 1.0;
-    const purityStr = String(purity).toLowerCase();
-    if (purityStr.includes('925') || purityStr.includes('sterling')) {
-      purityFactor = 0.925;
-    } else if (purityStr.includes('999') || purityStr.includes('fine')) {
-      purityFactor = 1.0;
-    }
-
-    const silverValue = Math.round(weight * purityFactor * rate * 100) / 100;
+    const silverValue = Math.round(weight * rate * 100) / 100;
     let calculatedMC = mc;
     let calculatedWMC = wmc;
 
@@ -146,20 +140,20 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const calculateCurrentPrice = (target: Product | number | any, baseSilverRate?: number): number => {
     if (typeof target === 'object' && target !== null) {
-      // 1. Check if product has explicit active variants array from API
+      // 1. Check if product has explicit variants array from API
       if (Array.isArray(target.variants) && target.variants.length > 0) {
         const activeVariants = target.variants.filter((v: any) => v.is_active !== false);
         const sourceVariants = activeVariants.length > 0 ? activeVariants : target.variants;
         const lowestVariant = sourceVariants.reduce((min: any, v: any) => {
           const vPrice = calculateDynamicPrice(
             v.weight_g,
-            v.making_charge,
+            v.making_charge !== undefined ? v.making_charge : Math.round((v.weight_g || 250) * 25),
             v.making_charge_type || 'fixed',
             target.silver_purity
           ).finalPrice;
           const minPrice = calculateDynamicPrice(
             min.weight_g,
-            min.making_charge,
+            min.making_charge !== undefined ? min.making_charge : Math.round((min.weight_g || 250) * 25),
             min.making_charge_type || 'fixed',
             target.silver_purity
           ).finalPrice;
@@ -168,13 +162,27 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         return calculateDynamicPrice(
           lowestVariant.weight_g,
-          lowestVariant.making_charge,
+          lowestVariant.making_charge !== undefined ? lowestVariant.making_charge : Math.round((lowestVariant.weight_g || 250) * 25),
           lowestVariant.making_charge_type || 'fixed',
           target.silver_purity
         ).finalPrice;
       }
 
-      // 2. Check if product has base_price / retail_price / price from database
+      // 2. Check if product has weight_g > 0 for dynamic live rate pricing
+      if (typeof target.weight_g === 'number' && target.weight_g > 0) {
+        return calculateDynamicPrice(
+          target.weight_g,
+          target.making_charges !== undefined
+            ? target.making_charges
+            : target.making_charge !== undefined
+            ? target.making_charge
+            : Math.round(target.weight_g * 25),
+          target.making_charge_type || 'fixed',
+          target.silver_purity
+        ).finalPrice;
+      }
+
+      // 3. Fallback to base_price / retail_price + diff if weight_g is not available
       const baseP =
         typeof target.base_price === 'number' && target.base_price > 0
           ? target.base_price
@@ -194,16 +202,6 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const diff = rateData.live_silver_rate - baseSR;
         return Math.max(1, Math.round((baseP + diff) * 100) / 100);
       }
-
-      // 3. Dynamic weight calculation if base_price is absent
-      if (typeof target.weight_g === 'number' && target.weight_g > 0) {
-        return calculateDynamicPrice(
-          target.weight_g,
-          target.making_charges || target.making_charge || 0,
-          target.making_charge_type || 'fixed',
-          target.silver_purity
-        ).finalPrice;
-      }
     }
 
     const basePrice = target as number;
@@ -214,16 +212,53 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const calculateWholesalePrice = (product: Product | any): number => {
-    const baseWP = product.wholesale_price || product.retail_price || 0;
-    const baseSR =
-      typeof product.base_silver_rate === 'number'
-        ? product.base_silver_rate
-        : typeof product.current_silver_rate === 'number'
-        ? product.current_silver_rate
-        : 250.64;
-    if (!baseWP || isNaN(baseWP)) return 0;
-    const diff = rateData.live_silver_rate - baseSR;
-    return Math.max(1, Math.round((baseWP + diff) * 100) / 100);
+    if (typeof product === 'object' && product !== null) {
+      if (Array.isArray(product.variants) && product.variants.length > 0) {
+        const activeVariants = product.variants.filter((v: any) => v.is_active !== false);
+        const sourceVariants = activeVariants.length > 0 ? activeVariants : product.variants;
+        const lowestVariant = sourceVariants.reduce((min: any, v: any) => {
+          const vPrice = calculateDynamicPrice(
+            v.weight_g,
+            v.making_charge !== undefined ? v.making_charge : Math.round((v.weight_g || 250) * 25),
+            v.making_charge_type || 'fixed',
+            product.silver_purity
+          ).wholesalePrice;
+          const minPrice = calculateDynamicPrice(
+            min.weight_g,
+            min.making_charge !== undefined ? min.making_charge : Math.round((min.weight_g || 250) * 25),
+            min.making_charge_type || 'fixed',
+            product.silver_purity
+          ).wholesalePrice;
+          return vPrice < minPrice ? v : min;
+        }, sourceVariants[0]);
+
+        return calculateDynamicPrice(
+          lowestVariant.weight_g,
+          lowestVariant.making_charge !== undefined ? lowestVariant.making_charge : Math.round((lowestVariant.weight_g || 250) * 25),
+          lowestVariant.making_charge_type || 'fixed',
+          product.silver_purity
+        ).wholesalePrice;
+      }
+
+      if (typeof product.weight_g === 'number' && product.weight_g > 0) {
+        return calculateDynamicPrice(
+          product.weight_g,
+          product.making_charges !== undefined
+            ? product.making_charges
+            : product.making_charge !== undefined
+            ? product.making_charge
+            : Math.round(product.weight_g * 25),
+          product.making_charge_type || 'fixed',
+          product.silver_purity
+        ).wholesalePrice;
+      }
+
+      if (typeof product.wholesale_price === 'number' && product.wholesale_price > 0) {
+        return product.wholesale_price;
+      }
+    }
+
+    return calculateCurrentPrice(product);
   };
 
   return (
@@ -241,3 +276,4 @@ export const SilverRateProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 };
 
 export const useSilverRate = () => useContext(SilverRateContext);
+

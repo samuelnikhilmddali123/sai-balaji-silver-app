@@ -12,7 +12,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { X, TrendingUp } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMenu } from '../context/MenuContext';
@@ -124,10 +124,20 @@ export const NavigationMenuModal: React.FC = () => {
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => handleNavigate('Account')}
+            onPress={() => {
+              closeMenu();
+              Linking.openURL('https://sbbullion.xyz/Liverates.html').catch(() => {
+                Alert.alert('Live Rates', 'Opening SB Bullion Live Rates...');
+              });
+            }}
             activeOpacity={0.7}
           >
-            <Text style={styles.menuText}>ACCOUNT</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.menuText, { color: '#B9A77A', fontWeight: '500' }]}>SB BULLION</Text>
+              <View style={{ borderWidth: 1, borderColor: '#B9A77A', borderRadius: 4, padding: 2, backgroundColor: '#FAF8F5' }}>
+                <TrendingUp size={15} color="#B9A77A" />
+              </View>
+            </View>
           </TouchableOpacity>
         </View>
 

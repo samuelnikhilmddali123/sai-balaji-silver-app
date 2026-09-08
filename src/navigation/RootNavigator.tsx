@@ -1,8 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Platform, Image, Text, TouchableOpacity } from 'react-native';
-import { Home, LayoutGrid, Briefcase, User, Search, ShoppingBag, Menu } from 'lucide-react-native';
+import { View, Platform, Image, Text, TouchableOpacity, Linking } from 'react-native';
+import { Home, LayoutGrid, Briefcase, User, Search, ShoppingBag, Menu, Instagram } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -84,6 +84,10 @@ const HeaderRightIcons: React.FC = () => {
   const { totalItemsCount } = useCart();
   const { openSearch } = useSearchModal();
 
+  const handleInstagramPress = () => {
+    Linking.openURL('https://www.instagram.com/saibalaji_silverworkspvtltd?igsi=ajl0a3hnYWw3dzhi').catch(() => {});
+  };
+
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 14 }}>
       <TouchableOpacity
@@ -92,6 +96,14 @@ const HeaderRightIcons: React.FC = () => {
         activeOpacity={0.7}
       >
         <Search color="#202020" size={20} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={handleInstagramPress}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.7}
+      >
+        <Instagram color="#202020" size={20} />
       </TouchableOpacity>
 
       <TouchableOpacity

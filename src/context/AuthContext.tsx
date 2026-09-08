@@ -344,9 +344,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         throw new Error('Google Play Services is not available or needs to be updated on this device.');
-      } else if (error.code === '10' || error.message?.includes('DEVELOPER_ERROR')) {
+      } else if (error.code === '10' || String(error.code) === '10' || error.message?.includes('DEVELOPER_ERROR')) {
         console.error(
-          '[Google Sign-In Configuration] DEVELOPER_ERROR (code 10). Verify that the SHA-1 signing fingerprint is registered for package com.saibalajisilverworks.'
+          '[Google Sign-In Configuration] DEVELOPER_ERROR (code 10). Verify that the SHA-1 signing fingerprint is registered for package com.saibalajisilverworks in Firebase Console.'
+        );
+        throw new Error(
+          'Google Sign-In SHA-1 setup required: Register this app build SHA-1 fingerprint in Firebase Console (com.saibalajisilverworks). You can also sign in directly using Email & Password.'
         );
       }
       console.error('Login with Google error:', error?.response?.data || error.message);
