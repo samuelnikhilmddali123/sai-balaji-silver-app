@@ -158,7 +158,7 @@ export const NavigationMenuModal: React.FC = () => {
                 ? `+91 ${adminPhone.slice(2, 7)} ${adminPhone.slice(7)}`
                 : `+${adminPhone}`} • Tenali Atelier
             </Text>
-            <Text style={styles.footerSubText}>100% NABL Hallmarked Silver</Text>
+            <Text style={styles.footerSubText}>100% BIS Hallmarked Silver</Text>
           </TouchableOpacity>
         </View>
       </View>

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   Play,
   Pause,
@@ -38,7 +39,7 @@ import { AppVideoPlayer } from '../components/AppVideoPlayer';
 import { VideoPlayerModal } from '../components/VideoPlayerModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const BASE_URL = 'https://saibalajisilverworkspvtltd.com';
+const BASE_URL = 'https://www.saibalajisilverworkspvtltd.com';
 const INITIAL_DISPLAY_COUNT = 6;
 const BATCH_LOAD_COUNT = 6;
 
@@ -50,6 +51,7 @@ interface ActiveVideo {
   code?: string;
   video_url?: string;
   thumbnail_url?: string;
+  is_portrait?: boolean;
 }
 
 export const AboutScreen: React.FC = () => {
@@ -73,22 +75,6 @@ export const AboutScreen: React.FC = () => {
   const [isFullscreenModal, setIsFullscreenModal] = useState(false);
   const [thumbnailMap, setThumbnailMap] = useState<Record<string, string>>({});
 
-  // Screen orientation lock for fullscreen video
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      if (isFullscreenModal && isVideoModalOpen) {
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
-      } else {
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-      }
-    }
-    return () => {
-      if (Platform.OS !== 'web') {
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
-      }
-    };
-  }, [isFullscreenModal, isVideoModalOpen]);
-
   // Fetch Videos from API
   useEffect(() => {
     const fetchVideoGallery = async () => {
@@ -109,7 +95,8 @@ export const AboutScreen: React.FC = () => {
             : item.video_url,
           thumbnail_url: item.thumbnail_url?.startsWith('/')
             ? `${BASE_URL}${item.thumbnail_url}`
-            : (item.thumbnail_url || 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp'),
+            : (item.thumbnail_url || 'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp'),
+          is_portrait: item.filename?.toLowerCase().includes('portrait') || item.video_url?.toLowerCase().endsWith('.mov'),
         }));
 
         setVideoList(formattedItems);
@@ -121,56 +108,6 @@ export const AboutScreen: React.FC = () => {
     };
 
     fetchVideoGallery();
-  }, []);
-
-  // Generate real video frame thumbnails for videoList
-  useEffect(() => {
-    if (videoList.length === 0) return;
-
-    let isMounted = true;
-    const generateThumbnails = async () => {
-      for (const vid of videoList) {
-        if (vid.video_url && !thumbnailMap[vid.video_url]) {
-          try {
-            const { uri } = await VideoThumbnails.getThumbnailAsync(vid.video_url, { time: 800 });
-            if (uri && isMounted) {
-              setThumbnailMap((prev) => ({ ...prev, [vid.video_url!]: uri }));
-            }
-          } catch (e) {}
-        }
-      }
-    };
-
-    generateThumbnails();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [videoList]);
-
-  // Generate thumbnails for fixed featured & doc videos
-  useEffect(() => {
-    let isMounted = true;
-    const initFixedThumbnails = async () => {
-      const urls = [
-        `${BASE_URL}/public/videos/6Z1A1842.MP4`,
-        `${BASE_URL}/public/videos/6Z1A1823.MP4`,
-      ];
-      for (const url of urls) {
-        if (url && !thumbnailMap[url]) {
-          try {
-            const { uri } = await VideoThumbnails.getThumbnailAsync(url, { time: 800 });
-            if (uri && isMounted) {
-              setThumbnailMap((prev) => ({ ...prev, [url]: uri }));
-            }
-          } catch (e) {}
-        }
-      }
-    };
-    initFixedThumbnails();
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   const handleOpenVideo = (video: ActiveVideo) => {
@@ -185,14 +122,12 @@ export const AboutScreen: React.FC = () => {
     setIsVideoModalOpen(true);
   };
 
-  const handleCloseVideo = async () => {
+  const handleCloseVideo = () => {
     setIsFullscreenModal(false);
     setIsVideoModalOpen(false);
     setActiveVideo(null);
     if (Platform.OS !== 'web') {
-      try {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-      } catch (e) {}
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     }
   };
 
@@ -200,13 +135,49 @@ export const AboutScreen: React.FC = () => {
     setDisplayCount((prev) => prev + BATCH_LOAD_COUNT);
   };
 
+  // Video caching state for fast playback of 60MB documentary video
+  const [docVideoUrl, setDocVideoUrl] = useState<string>(
+    `${BASE_URL}/public/videos/copy_42A5BAB8-2B8C-4514-8BDD-BEAC916B6DF0.mov`
+  );
+
+  // Background caching: download video once to device cache for instant 0.05s playback
+  useEffect(() => {
+    let isMounted = true;
+    const cacheMainVideo = async () => {
+      try {
+        if (!FileSystem.cacheDirectory) return;
+        const localPath = `${FileSystem.cacheDirectory}heritage_craftsman_42A5BAB8.mov`;
+        const fileInfo = await FileSystem.getInfoAsync(localPath);
+        if (fileInfo.exists && (fileInfo as any).size > 10000000) {
+          if (isMounted) {
+            setDocVideoUrl(localPath);
+          }
+          return;
+        }
+        // Start background download to cache directory
+        const remoteUrl = `${BASE_URL}/public/videos/copy_42A5BAB8-2B8C-4514-8BDD-BEAC916B6DF0.mov`;
+        const downloadRes = await FileSystem.downloadAsync(remoteUrl, localPath);
+        if (isMounted && downloadRes && downloadRes.uri) {
+          setDocVideoUrl(downloadRes.uri);
+        }
+      } catch (e) {
+        console.warn('Video background cache notice:', e);
+      }
+    };
+    cacheMainVideo();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const docVideoData: ActiveVideo = {
-    title: 'High Precision Laser Engraving #1842',
+    title: 'Heritage Craftsmanship Showcase',
     description:
-      'Unscripted footage of high precision laser engraving at our Tenali silver manufacturing facility. File code: 6Z1A1842.MP4.',
-    code: '#6Z1A1842',
-    video_url: `${BASE_URL}/public/videos/6Z1A1842.MP4`,
-    thumbnail_url: 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
+      'Unscripted portrait footage of pure silver crafting and artisan mastery at our Tenali facility. File code: copy_42A5BAB8.',
+    code: '#SBSW-HERITAGE',
+    video_url: docVideoUrl,
+    thumbnail_url: 'heritage_craftsman',
+    is_portrait: true,
   };
 
   const mfgVideoData: ActiveVideo = {
@@ -215,7 +186,7 @@ export const AboutScreen: React.FC = () => {
       'Unscripted footage of silver kalash & diya polishing at our Tenali silver manufacturing facility. File code: 6Z1A1823.MP4.',
     code: '#6Z1A1823',
     video_url: `${BASE_URL}/public/videos/6Z1A1823.MP4`,
-    thumbnail_url: 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
+    thumbnail_url: 'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
   };
 
   const visibleVideos = videoList.slice(0, displayCount);
@@ -252,23 +223,18 @@ export const AboutScreen: React.FC = () => {
 
         {/* SUBTITLE */}
         <Text style={styles.subtitle}>
-          Combining ancestral metallurgic mastery with modern NABL hallmarking techniques to craft pure 925 sterling & 999 fine silver.
+          Combining ancestral metallurgic mastery with modern BIS hallmarking techniques to craft pure 925 sterling & 999 fine silver.
         </Text>
 
-        {/* DOCUMENTARY VIDEO CARD */}
+        {/* DOCUMENTARY VIDEO CARD (With authentic craftsman thumbnail) */}
         <TouchableOpacity
           style={styles.videoCard}
           activeOpacity={0.92}
           onPress={() => handleOpenVideo(docVideoData)}
         >
           <Image
-            source={{
-              uri:
-                thumbnailMap[docVideoData.video_url!] ||
-                docVideoData.thumbnail_url ||
-                'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
-            }}
-            style={{ ...StyleSheet.absoluteFill, opacity: 0.45 }}
+            source={require('../../assets/heritage_craftsman.jpg')}
+            style={{ ...StyleSheet.absoluteFill, opacity: 0.55 }}
             resizeMode="cover"
           />
           <View style={styles.docBadge}>
@@ -320,7 +286,7 @@ export const AboutScreen: React.FC = () => {
                 uri:
                   thumbnailMap[mfgVideoData.video_url!] ||
                   mfgVideoData.thumbnail_url ||
-                  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
+                  'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
               }}
               style={{ width: '100%', height: '100%', position: 'absolute' }}
               resizeMode="cover"
@@ -435,7 +401,7 @@ export const AboutScreen: React.FC = () => {
                           (video.video_url && thumbnailMap[video.video_url]) ||
                           (video.thumbnail_url && !video.thumbnail_url.endsWith('.MP4') && !video.thumbnail_url.endsWith('.mp4')
                             ? video.thumbnail_url
-                            : 'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp'),
+                            : 'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp'),
                       }}
                       style={{ width: '100%', height: '100%', position: 'absolute' }}
                       resizeMode="cover"
@@ -508,7 +474,7 @@ export const AboutScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.legalCard}
               activeOpacity={0.85}
-              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/privacy-policy').catch(() => {})}
+              onPress={() => Linking.openURL('https://www.saibalajisilverworkspvtltd.com/privacy-policy').catch(() => { })}
             >
               <View style={styles.legalIconCircle}>
                 <ShieldCheck size={20} color="#C5A059" />
@@ -523,7 +489,7 @@ export const AboutScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.legalCard}
               activeOpacity={0.85}
-              onPress={() => Linking.openURL('https://saibalajisilverworkspvtltd.com/terms-and-conditions').catch(() => {})}
+              onPress={() => Linking.openURL('https://www.saibalajisilverworkspvtltd.com/terms-and-conditions').catch(() => { })}
             >
               <View style={styles.legalIconCircle}>
                 <FileText size={20} color="#C5A059" />
@@ -541,10 +507,7 @@ export const AboutScreen: React.FC = () => {
       {/* VIDEO PLAYER SHOWCASE MODAL ADOPTED FROM SAIBALAJI_SILVERWORKS */}
       <VideoPlayerModal
         isOpen={isVideoModalOpen}
-        onClose={() => {
-          setIsVideoModalOpen(false);
-          setActiveVideo(null);
-        }}
+        onClose={handleCloseVideo}
         videoUrl={activeVideo?.video_url || ''}
         posterUrl={
           activeVideo?.video_url
@@ -553,6 +516,11 @@ export const AboutScreen: React.FC = () => {
         }
         title={activeVideo?.title}
         description={activeVideo?.description}
+        isPortrait={
+          activeVideo?.is_portrait ||
+          (activeVideo?.video_url?.includes('copy_42A5BAB8') ?? false) ||
+          (activeVideo?.video_url?.toLowerCase().endsWith('.mov') ?? false)
+        }
       />
     </View>
   );

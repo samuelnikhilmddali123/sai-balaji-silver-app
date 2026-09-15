@@ -708,7 +708,7 @@ export const ProductDetailScreen: React.FC = () => {
           <View style={styles.trustGrid}>
             <View style={styles.trustItem}>
               <ShieldCheck size={20} color="#202020" style={{ marginBottom: 4 }} />
-              <Text style={styles.trustItemTitle}>NABL Hallmarked</Text>
+              <Text style={styles.trustItemTitle}>BIS Hallmarked</Text>
               <Text style={styles.trustItemSub}>100% Pure Silver</Text>
             </View>
 
@@ -805,7 +805,7 @@ export const ProductDetailScreen: React.FC = () => {
                   )}
                   <View style={styles.specRow}>
                     <Text style={styles.specKey}>Hallmarking:</Text>
-                    <Text style={styles.specVal}>BIS NABL Laser Hallmarked</Text>
+                    <Text style={styles.specVal}>BIS Laser Hallmarked</Text>
                   </View>
                 </View>
               )}
@@ -813,7 +813,7 @@ export const ProductDetailScreen: React.FC = () => {
               {activeTab === 'purity' && (
                 <View>
                   <Text style={styles.tabBodyText}>
-                    • Certified by NABL accredited testing laboratories under BIS Hallmarking standards.
+                    • Certified under BIS Hallmarking standards.
                   </Text>
                   <Text style={styles.tabBodyText}>
                     • Tested via XRF Spectroscopic Analysis ensuring exact metal purity tolerances.

@@ -21,11 +21,11 @@ const CATEGORIES = [
 ];
 
 const THUMBNAILS = [
-  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
-  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
-  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Elegant%20Silver%20Lakshmi%20Devi%20Idol%20with%20Ornate%20Arch.webp',
-  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Shree%20Divya%20Silver%20Masala%20Box%20Set.webp',
-  'https://saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Ornate%20Silver%20Diya%20Lamp%20Pair.webp',
+  'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Floral%20Engraved%20Silver%20Pooja%20Thali%20Set.webp',
+  'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Royal%20Floral%20Crest%20Silver%20Serving%20Tray.webp',
+  'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Elegant%20Silver%20Lakshmi%20Devi%20Idol%20with%20Ornate%20Arch.webp',
+  'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Shree%20Divya%20Silver%20Masala%20Box%20Set.webp',
+  'https://www.saibalajisilverworkspvtltd.com/public/Saibalaji%20products%20S/Ornate%20Silver%20Diya%20Lamp%20Pair.webp',
 ];
 
 const SAMPLE_MP4_URLS = [
@@ -115,7 +115,7 @@ const TITLES_BY_CATEGORY: Record<string, string[]> = {
   ],
   'SPECTROMETER & QUALITY TESTING': [
     'XRF Metallurgical Purity Analysis of 999 Bullion',
-    'NABL Assay Office Fire Assay Verification',
+    'BIS Assay Office Fire Assay Verification',
     'Ultrasonic Density Inspection of Silver Ingots',
     'Surface Micro-Hardness Testing on Sterling Tableware',
     'Laser Spectrograph Assay Certification Run',

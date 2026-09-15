@@ -1,19 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
 import api, { authApi } from '../services/api';
-import { auth, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut, WEB_CLIENT_ID, IOS_CLIENT_ID } from '../services/firebase';
+import { auth, signOut as firebaseSignOut } from '../services/firebase';
 import { setAdminPhoneNumber } from '../services/photoShare';
 import { User } from '../types';
 
-let GoogleSignin: any = null;
-let statusCodes: any = {};
-try {
-  const googleModule = require('@react-native-google-signin/google-signin');
-  GoogleSignin = googleModule.GoogleSignin;
-  statusCodes = googleModule.statusCodes;
-} catch (e) {
-  console.log('@react-native-google-signin/google-signin native module not loaded in this bundle.');
-}
+// Ensure any in-progress auth sessions are completed on web/custom tab redirect
+WebBrowser.maybeCompleteAuthSession();
 
 interface AuthContextType {
   user: User | null;
@@ -49,26 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  const configureGoogleSignIn = () => {
-    if (GoogleSignin) {
-      try {
-        GoogleSignin.configure({
-          webClientId: WEB_CLIENT_ID,
-          iosClientId: IOS_CLIENT_ID,
-          scopes: ['profile', 'email'],
-          offlineAccess: false,
-          forceCodeForRefreshToken: false,
-        });
-      } catch (e) {
-        console.error('Failed to configure GoogleSignin:', e);
-      }
-    }
-  };
-
-  useEffect(() => {
-    configureGoogleSignIn();
-  }, []);
+  const [isGoogleAuthInProgress, setIsGoogleAuthInProgress] = useState<boolean>(false);
 
   const fetchAndMergeUserDetails = async (initialUser: User): Promise<User> => {
     try {
@@ -156,7 +133,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkLoggedIn = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('userToken');
+      let storedToken = await AsyncStorage.getItem('userToken');
+      if (!storedToken) {
+        try {
+          storedToken = await SecureStore.getItemAsync('userToken');
+          if (storedToken) {
+            await AsyncStorage.setItem('userToken', storedToken);
+          }
+        } catch (secErr) {}
+      }
       const storedUser = await AsyncStorage.getItem('userData');
       if (storedToken) {
         setUserToken(storedToken);
@@ -232,128 +217,166 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithGoogle = async (): Promise<boolean> => {
+  const processCodeExchange = async (code: string): Promise<boolean> => {
     try {
-      if (!GoogleSignin) {
-        throw new Error('Native Google Sign-In is available in the installed app build (not in standard Expo Go).');
-      }
-
-      // Ensure GoogleSignin is configured before calling signIn
-      configureGoogleSignIn();
-
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-
-      // Clear any cached Google session before sign-in so Google Play Services
-      // always displays the account chooser dialog
+      // 1. Immediately wipe previous authentication and user state in memory & storage
+      setUser(null);
+      setUserToken(null);
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userData');
+      await AsyncStorage.removeItem('user_saved_address');
       try {
-        await GoogleSignin.signOut();
-      } catch (signOutErr) {
-        // Ignore error if user was not previously signed in
+        await SecureStore.deleteItemAsync('userToken');
+      } catch (secErr) {}
+
+      // 2. Call backend token exchange endpoint: POST /auth/mobile/exchange
+      const res = await authApi.exchangeMobileAuthCode(code);
+      const data = res.data;
+
+      if (!data || !data.access_token) {
+        throw new Error('Invalid response from token exchange server.');
       }
 
-      const response = await GoogleSignin.signIn();
-      const idToken = response.data?.idToken || (response as any).idToken;
+      const token = data.access_token;
+      const returnedUser = data.user;
 
-      if (!idToken) {
-        throw new Error('Google Sign-In failed: No ID Token returned');
+      if (!returnedUser) {
+        throw new Error('No user data returned from authentication exchange.');
       }
 
-      // 1. Authenticate with Firebase Auth
-      const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(auth, credential);
-      const firebaseUser = userCredential.user;
-
-      // 2. Obtain Firebase ID Token
-      const firebaseToken = await firebaseUser.getIdToken();
-
-      // 3. Authenticate with backend API (POST /auth/google)
-      let res;
+      // 3. Save access_token securely
+      await AsyncStorage.setItem('userToken', token);
       try {
-        res = await authApi.googleAuth({
-          idToken: firebaseToken,
-          email: firebaseUser.email || '',
-          name: firebaseUser.displayName || 'Google User',
-          full_name: firebaseUser.displayName || 'Google User',
-          photo_url: firebaseUser.photoURL || '',
-          firebase_uid: firebaseUser.uid,
-        });
-      } catch (backendErr: any) {
-        try {
-          res = await api.post('/auth/google', {
-            idToken: firebaseToken,
-            id_token: firebaseToken,
-            firebase_token: firebaseToken,
-            email: firebaseUser.email || '',
-            name: firebaseUser.displayName || 'Google User',
-            full_name: firebaseUser.displayName || 'Google User',
-            photo_url: firebaseUser.photoURL || '',
-            firebase_uid: firebaseUser.uid,
-          });
-        } catch (err2) {
-          try {
-            res = await api.post('/auth/google-login', {
-              firebase_token: firebaseToken,
-              id_token: firebaseToken,
-              idToken: firebaseToken,
-              email: firebaseUser.email || '',
-              name: firebaseUser.displayName || 'Google User',
-              full_name: firebaseUser.displayName || 'Google User',
-            });
-          } catch (err3) {
-            res = {
-              data: {
-                access_token: firebaseToken,
-                user: {
-                  email: firebaseUser.email,
-                  full_name: firebaseUser.displayName || 'Google User',
-                  firebase_uid: firebaseUser.uid,
-                  photo_url: firebaseUser.photoURL || '',
-                },
-              },
-            };
-          }
-        }
-      }
+        await SecureStore.setItemAsync('userToken', token);
+      } catch (secErr) {}
 
-      const token = res.data.access_token || res.data.token || firebaseToken;
-      const loggedUser = res.data.user || {};
-      const effectiveUser: User = {
-        id: loggedUser?.id || Date.now(),
-        email: firebaseUser.email || loggedUser?.email || '',
-        full_name: firebaseUser.displayName || loggedUser?.full_name || loggedUser?.name || 'Google User',
-        photo_url: firebaseUser.photoURL || loggedUser?.photo_url || '',
-        firebase_uid: firebaseUser.uid || loggedUser?.firebase_uid || '',
-        role: loggedUser?.role || 'CUSTOMER',
-        is_active: loggedUser?.is_active ?? true,
-        ...(loggedUser || {}),
+      // 4. Construct user profile and merge details
+      const initialUser: User = {
+        id: returnedUser.id || Date.now(),
+        email: returnedUser.email || '',
+        full_name: returnedUser.full_name || returnedUser.name || 'Google User',
+        phone: returnedUser.phone || '',
+        role: returnedUser.role || 'CUSTOMER',
+        photo_url: returnedUser.photo_url || '',
+        street_address: returnedUser.street_address || '',
+        street: returnedUser.street_address || '',
+        city: returnedUser.city || '',
+        state: returnedUser.state || '',
+        pincode: returnedUser.pincode || '',
+        company_name: returnedUser.company_name || '',
+        gstin: returnedUser.gstin || '',
+        is_active: returnedUser.is_active ?? true,
+        ...returnedUser,
       };
 
+      const fullUser = await fetchAndMergeUserDetails(initialUser);
       setUserToken(token);
-      await AsyncStorage.setItem('userToken', token);
-
-      const fullUser = await fetchAndMergeUserDetails(effectiveUser);
       setUser(fullUser);
       await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
+
       return true;
+    } catch (err: any) {
+      console.error('Token exchange error:', err?.response?.data || err?.message);
+      throw new Error(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Unable to sign in. Please try again.'
+      );
+    }
+  };
+
+  const loginWithGoogle = async (): Promise<boolean> => {
+    if (isGoogleAuthInProgress) {
+      console.log('Google Sign-In already in progress');
+      return false;
+    }
+    setIsGoogleAuthInProgress(true);
+
+    let deepLinkSubscription: any = null;
+    let isProcessed = false;
+
+    try {
+      const redirectUri = 'saibalaji://auth/callback';
+      const authUrl = `https://www.saibalajisilverworkspvtltd.com/mobile-auth?redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+      // Helper to validate deep link URI and process code
+      const parseAndProcessUrl = async (urlStr: string): Promise<boolean> => {
+        if (isProcessed || !urlStr) return false;
+
+        if (
+          urlStr.startsWith('saibalaji://auth/callback') ||
+          urlStr.startsWith('saibalajisilverworks://auth/callback')
+        ) {
+          isProcessed = true;
+          const queryIndex = urlStr.indexOf('?');
+          if (queryIndex !== -1) {
+            const queryString = urlStr.substring(queryIndex + 1);
+            const searchParams = new URLSearchParams(queryString);
+            const code = searchParams.get('code');
+            const error = searchParams.get('error');
+
+            if (error) {
+              if (error.toLowerCase().includes('cancel')) {
+                return false;
+              }
+              throw new Error('Google sign-in was cancelled or failed.');
+            }
+
+            if (code && code.trim().length > 0) {
+              return await processCodeExchange(code.trim());
+            }
+          }
+          throw new Error('Unable to sign in. Please try again.');
+        }
+        return false;
+      };
+
+      // Set up deep link listener for incoming Android intent
+      const deepLinkPromise = new Promise<boolean>((resolve, reject) => {
+        deepLinkSubscription = Linking.addEventListener('url', async (event) => {
+          try {
+            const success = await parseAndProcessUrl(event.url);
+            resolve(success);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+
+      // Launch Chrome Custom Tab / WebBrowser
+      const browserPromise = (async (): Promise<boolean> => {
+        try {
+          const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+          if (result.type === 'success' && result.url) {
+            return await parseAndProcessUrl(result.url);
+          } else if (result.type === 'cancel' || result.type === 'dismiss') {
+            console.log('Google Sign-In was cancelled by user');
+            return false;
+          }
+        } catch (browserError) {
+          console.warn('Custom Tabs unavailable, falling back to system browser:', browserError);
+          try {
+            await Linking.openURL(authUrl);
+          } catch (openErr) {
+            throw new Error('Unable to open browser for Google Sign-In.');
+          }
+        }
+        return false;
+      })();
+
+      const result = await Promise.race([browserPromise, deepLinkPromise]);
+      return result;
     } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log('User cancelled Google Sign-In');
+      console.error('Login with Google error:', error?.message);
+      if (error?.message?.includes('cancelled')) {
         return false;
-      } else if (error.code === statusCodes.IN_PROGRESS) {
-        console.log('Google Sign-In already in progress');
-        return false;
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        throw new Error('Google Play Services is not available or needs to be updated on this device.');
-      } else if (error.code === '10' || String(error.code) === '10' || error.message?.includes('DEVELOPER_ERROR')) {
-        console.error(
-          '[Google Sign-In Configuration] DEVELOPER_ERROR (code 10). Verify that the SHA-1 signing fingerprint is registered for package com.saibalajisilverworks in Firebase Console.'
-        );
-        throw new Error(
-          'Google Sign-In SHA-1 setup required: Register this app build SHA-1 fingerprint in Firebase Console (com.saibalajisilverworks). You can also sign in directly using Email & Password.'
-        );
       }
-      console.error('Login with Google error:', error?.response?.data || error.message);
-      throw new Error(error?.response?.data?.detail || error.message || 'Google Sign-In failed');
+      throw new Error(error?.message || 'Unable to sign in. Please try again.');
+    } finally {
+      if (deepLinkSubscription && typeof deepLinkSubscription.remove === 'function') {
+        deepLinkSubscription.remove();
+      }
+      setIsGoogleAuthInProgress(false);
     }
   };
 
@@ -523,13 +546,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    if (GoogleSignin) {
-      try {
-        await GoogleSignin.signOut();
-      } catch (e) {
-        console.log('GoogleSignin signOut error on logout:', e);
-      }
-    }
+    setUser(null);
+    setUserToken(null);
+    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('userData');
+    await AsyncStorage.removeItem('user_saved_address');
+    try {
+      await SecureStore.deleteItemAsync('userToken');
+    } catch (e) {}
     try {
       if (auth) {
         await firebaseSignOut(auth);
@@ -537,11 +561,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.log('Firebase auth signOut error on logout:', e);
     }
-    setUser(null);
-    setUserToken(null);
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userData');
-    await AsyncStorage.removeItem('user_saved_address');
   };
 
   const isAdmin = user?.role === 'ADMIN';

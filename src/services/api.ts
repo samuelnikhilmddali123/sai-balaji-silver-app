@@ -8,7 +8,7 @@ const getBaseURL = () => {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
   }
 
-  return 'https://saibalajisilverworkspvtltd.com/api/v1';
+  return 'https://www.saibalajisilverworkspvtltd.com/api/v1';
 };
 
 export const API_BASE_URL = getBaseURL();
@@ -111,7 +111,7 @@ export const authApi = {
     } catch (e: any) {
       if (e?.message === 'Network Error' || !e.response) {
         const fallbackUrls = [
-          'https://saibalajisilverworkspvtltd.com/api/v1/auth/register',
+          'https://www.saibalajisilverworkspvtltd.com/api/v1/auth/register',
           'http://localhost:8000/api/v1/auth/register',
           'http://localhost:5173/api/v1/auth/register',
           'http://10.0.2.2:8000/api/v1/auth/register',
@@ -120,7 +120,7 @@ export const authApi = {
           try {
             const res = await axios.post(url, body, { timeout: 3000 });
             if (res && res.data) return res;
-          } catch (err) {}
+          } catch (err) { }
         }
       }
       throw e;
@@ -132,7 +132,7 @@ export const authApi = {
     } catch (e: any) {
       if (e?.message === 'Network Error' || !e.response) {
         const fallbackUrls = [
-          'https://saibalajisilverworkspvtltd.com/api/v1/auth/login',
+          'https://www.saibalajisilverworkspvtltd.com/api/v1/auth/login',
           'http://localhost:8000/api/v1/auth/login',
           'http://localhost:5173/api/v1/auth/login',
           'http://10.0.2.2:8000/api/v1/auth/login',
@@ -141,7 +141,7 @@ export const authApi = {
           try {
             const res = await axios.post(url, payload, { timeout: 3000 });
             if (res && res.data) return res;
-          } catch (err) {}
+          } catch (err) { }
         }
       }
       throw e;
@@ -167,6 +167,23 @@ export const authApi = {
     }),
   getMe: () => api.get('/auth/me'),
   updateMe: (data: any) => api.put('/auth/me', data),
+  exchangeMobileAuthCode: async (code: string) => {
+    try {
+      return await api.post('/auth/mobile/exchange', { code });
+    } catch (e: any) {
+      if (e?.message === 'Network Error' || !e.response) {
+        return await axios.post(
+          'https://www.saibalajisilverworkspvtltd.com/api/v1/auth/mobile/exchange',
+          { code },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000,
+          }
+        );
+      }
+      throw e;
+    }
+  },
 };
 
 // --- LIVE SILVER RATE API ---
@@ -227,14 +244,14 @@ export const silverRateApi = {
 // --- SETTINGS & ADMIN CONTACT API ---
 export const settingsApi = {
   getSettings: () => api.get('/settings'),
-  updateSettings: (data: { whatsapp_number?: string; phone?: string; [key: string]: any }) =>
+  updateSettings: (data: { whatsapp_number?: string; phone?: string;[key: string]: any }) =>
     api.put('/settings', data).catch(() => api.post('/settings', data)),
 };
 
 // --- CATALOG & CATEGORIES API ---
 export const catalogApi = {
   getCategories: () => api.get('/categories'),
-  getProducts: (params?: { category?: string; category_slug?: string; category_id?: number; search?: string; page?: number; limit?: number; in_stock?: boolean; is_featured?: boolean; is_new_arrival?: boolean; sort_by?: string; [key: string]: any }) =>
+  getProducts: (params?: { category?: string; category_slug?: string; category_id?: number; search?: string; page?: number; limit?: number; in_stock?: boolean; is_featured?: boolean; is_new_arrival?: boolean; sort_by?: string;[key: string]: any }) =>
     api.get('/products', { params }),
   getProductDetail: (idOrSlug: string | number) =>
     api.get(`/products/${idOrSlug}`),
@@ -266,14 +283,14 @@ export const orderApi = {
       if (res && res.data && (Array.isArray(res.data) ? res.data.length > 0 : Object.keys(res.data).length > 0)) {
         return res;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       const res = await api.get('/orders', { params });
       if (res && res.data && (Array.isArray(res.data) ? res.data.length > 0 : Object.keys(res.data).length > 0)) {
         return res;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const baseHost = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
     const fallbackUrls = [
@@ -290,7 +307,7 @@ export const orderApi = {
         if (res && res.data && (Array.isArray(res.data) ? res.data.length > 0 : Object.keys(res.data).length > 0)) {
           return res;
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     return { data: [] };
@@ -319,14 +336,14 @@ export const wholesaleApi = {
       if (res && res.data) {
         return res;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       const res = await api.get('/wholesale/requests', { params });
       if (res && res.data) {
         return res;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const baseHost = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
     const fallbackUrls = [
@@ -343,7 +360,7 @@ export const wholesaleApi = {
         if (res && res.data) {
           return res;
         }
-      } catch (err) {}
+      } catch (err) { }
     }
 
     return { data: [] };

@@ -31,6 +31,18 @@ const NativeVideoPlayer: React.FC<AppVideoPlayerProps> = ({
   const player = useVideoPlayer({ uri: videoUrl }, (p: any) => {
     p.loop = true;
     p.muted = !!isMuted;
+    try {
+      p.bufferOptions = {
+        preferredForwardBufferDuration: 2,
+        minBufferForPlayback: 0.1,
+        prioritizeTimeOverSizeThreshold: true,
+      };
+    } catch (e) {}
+    if (isPlaying) {
+      try {
+        p.play();
+      } catch (e) {}
+    }
   });
 
   // Play / Pause / Mute synchronization & playback enforcer
@@ -40,17 +52,6 @@ const NativeVideoPlayer: React.FC<AppVideoPlayerProps> = ({
 
     if (isPlaying) {
       player.play();
-
-      // Active retries to start network video stream immediately
-      const t1 = setTimeout(() => { try { player.play(); } catch (e) {} }, 100);
-      const t2 = setTimeout(() => { try { player.play(); } catch (e) {} }, 400);
-      const t3 = setTimeout(() => { try { player.play(); } catch (e) {} }, 900);
-
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
     } else {
       player.pause();
     }

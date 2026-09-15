@@ -2,7 +2,10 @@
   "expo": {
     "name": "Sai Balaji Silverworks",
     "slug": "saibalaji-silverworks-app",
-    "scheme": "saibalajisilverworks",
+    "scheme": [
+      "saibalajisilverworks",
+      "saibalaji"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -48,7 +51,9 @@
       "expo-font",
       "expo-sharing",
       "expo-status-bar",
-      "expo-video"
+      "expo-video",
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
