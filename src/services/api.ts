@@ -2,6 +2,13 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import sessionManager from './sessionManager';
+
+let unauthorizedCallback: (() => void) | null = null;
+
+export const setUnauthorizedCallback = (cb: () => void) => {
+  unauthorizedCallback = cb;
+};
 
 const getBaseURL = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
@@ -41,7 +48,7 @@ export const api = axios.create({
 
 api.interceptors.request.use(async (config) => {
   try {
-    const token = await AsyncStorage.getItem('userToken');
+    const token = await sessionManager.getToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -53,7 +60,23 @@ api.interceptors.request.use(async (config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      const requestUrl = error.config?.url || '';
+      // Ignore 401 on login credentials submission or auth exchange
+      const isAuthEndpoint =
+        requestUrl.includes('/auth/login') ||
+        requestUrl.includes('/auth/register') ||
+        requestUrl.includes('/auth/mobile/exchange');
+
+      if (!isAuthEndpoint) {
+        console.warn('[API] 401 Unauthorized received on protected route. Clearing invalid session.');
+        await sessionManager.clearSession().catch(() => {});
+        if (unauthorizedCallback) {
+          unauthorizedCallback();
+        }
+      }
+    }
     if (error.response && error.response.status === 530) {
       console.warn('API returned HTTP 530 (Tunnel/Proxy error). Check backend connection on port 8000 or 5173.');
     }
@@ -166,7 +189,13 @@ export const authApi = {
       firebase_uid: payload.firebase_uid || '',
     }),
   getMe: () => api.get('/auth/me'),
-  updateMe: (data: any) => api.put('/auth/me', data),
+  updateMe: (data: any, customToken?: string) => {
+    const config: any = {};
+    if (customToken) {
+      config.headers = { Authorization: `Bearer ${customToken}` };
+    }
+    return api.put('/auth/me', data, config);
+  },
   exchangeMobileAuthCode: async (code: string) => {
     try {
       return await api.post('/auth/mobile/exchange', { code });
@@ -300,7 +329,7 @@ export const orderApi = {
 
     for (const url of fallbackUrls) {
       try {
-        const token = await AsyncStorage.getItem('userToken');
+        const token = await sessionManager.getToken();
         const headers: any = {};
         if (token) headers.Authorization = `Bearer ${token}`;
         const res = await axios.get(url, { headers, params, timeout: 3000 });
@@ -353,7 +382,7 @@ export const wholesaleApi = {
 
     for (const url of fallbackUrls) {
       try {
-        const token = await AsyncStorage.getItem('userToken');
+        const token = await sessionManager.getToken();
         const headers: any = {};
         if (token) headers.Authorization = `Bearer ${token}`;
         const res = await axios.get(url, { headers, params, timeout: 3000 });

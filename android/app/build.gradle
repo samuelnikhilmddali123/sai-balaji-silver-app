@@ -91,8 +91,8 @@ android {
         applicationId 'com.saibalajisilverworks'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 202609016
-        versionName "1.0.0"
+        versionCode 202609172
+        versionName "1.2.5"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

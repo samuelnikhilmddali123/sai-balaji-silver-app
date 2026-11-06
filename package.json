@@ -1,6 +1,6 @@
 {
   "name": "saibalaji-silverworks-app",
-  "version": "1.0.0",
+  "version": "1.2.5",
   "scripts": {
     "start": "expo start",
     "start:lan": "expo start --lan",

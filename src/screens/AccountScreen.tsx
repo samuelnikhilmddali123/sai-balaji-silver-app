@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { User as UserIcon,
+import {
+  User as UserIcon,
   LogOut,
   Eye,
   EyeOff,
@@ -43,7 +44,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { EditAddressModal, AddressData } from '../components/EditAddressModal';
 import { PhoneInputWithCountry } from '../components/PhoneInputWithCountry';
-import api, { orderApi, wholesaleApi, getProductImageUrl } from '../services/api';
+import api, { authApi, orderApi, wholesaleApi, getProductImageUrl } from '../services/api';
 import { Order } from '../types';
 
 const GoogleIcon: React.FC<{ size?: number }> = ({ size = 20 }) => (
@@ -70,7 +71,7 @@ const GoogleIcon: React.FC<{ size?: number }> = ({ size = 20 }) => (
 export const AccountScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user, login, loginWithGoogle, register, logout, updateUser } = useAuth();
+  const { user, login, loginWithGoogle, register, logout, updateUser, isLoading } = useAuth();
   const { wishlist } = useWishlist();
 
   // Auth Tab State
@@ -78,6 +79,8 @@ export const AccountScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [registrationApiError, setRegistrationApiError] = useState<string | null>(null);
+  const authScrollViewRef = useRef<ScrollView>(null);
 
   // Form State for Login / Register
   const [email, setEmail] = useState('');
@@ -140,7 +143,7 @@ export const AccountScreen: React.FC = () => {
             );
           }
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const queryParams = {
         email: user.email,
@@ -456,11 +459,13 @@ export const AccountScreen: React.FC = () => {
 
     if (Object.keys(newErrors).length > 0) {
       setFormErrors(newErrors);
+      setRegistrationApiError('Please complete all required fields marked with * before registering.');
       Alert.alert('Address & Details Required', 'Please complete all required fields marked with * before registering.');
       return;
     }
 
     setFormErrors({});
+    setRegistrationApiError(null);
     setLoading(true);
     try {
       const streetCombined = cleanAddress2 ? `${cleanAddress1}, ${cleanAddress2}` : cleanAddress1;
@@ -491,7 +496,56 @@ export const AccountScreen: React.FC = () => {
         country: cleanCountry,
       });
     } catch (err: any) {
-      Alert.alert('Registration Failed', err.message || 'Could not register');
+      console.log('AccountScreen register error:', err);
+      const rawDetail =
+        err?.detail ||
+        (typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : null) ||
+        (typeof err?.response?.data?.message === 'string' ? err.response.data.message : null) ||
+        err?.message ||
+        'Registration failed';
+
+      const isEmailDuplicate = Boolean(
+        err?.emailExists === true ||
+        err?.response?.data?.emailExists === true ||
+        /email.*already exists|account with this email|email.*taken|email.*registered/i.test(rawDetail)
+      );
+
+      const isPhoneDuplicate = Boolean(
+        err?.phoneExists === true ||
+        err?.response?.data?.phoneExists === true ||
+        /phone.*already exists|phone.*taken|phone.*registered/i.test(rawDetail)
+      );
+
+      const fieldErrors: Record<string, string> = {};
+
+      if (isEmailDuplicate && isPhoneDuplicate) {
+        fieldErrors.email = 'Email already exists.';
+        fieldErrors.phone = 'Phone number already exists.';
+        setFormErrors(fieldErrors);
+        const alertMsg = 'Email already exists and phone number already exists.';
+        setRegistrationApiError(alertMsg);
+        Alert.alert('Registration Failed', alertMsg);
+      } else if (isEmailDuplicate) {
+        fieldErrors.email = 'Email already exists.';
+        setFormErrors(fieldErrors);
+        const alertMsg = 'Email already exists.';
+        setRegistrationApiError(alertMsg);
+        Alert.alert('Registration Failed', alertMsg);
+      } else if (isPhoneDuplicate) {
+        fieldErrors.phone = 'Phone number already exists.';
+        setFormErrors(fieldErrors);
+        const alertMsg = 'Phone number already exists.';
+        setRegistrationApiError(alertMsg);
+        Alert.alert('Registration Failed', alertMsg);
+      } else {
+        setRegistrationApiError(rawDetail);
+        Alert.alert('Registration Failed', rawDetail);
+      }
+
+      // Automatically scroll up to ensure highlighted field errors are visible
+      setTimeout(() => {
+        authScrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 50);
     } finally {
       setLoading(false);
     }
@@ -509,6 +563,17 @@ export const AccountScreen: React.FC = () => {
       setGoogleLoading(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAF8F5' }}>
+        <ActivityIndicator size="large" color="#C5A059" />
+        <Text style={{ marginTop: 14, color: '#898985', fontSize: 13, letterSpacing: 1.5, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontWeight: '500' }}>
+          RESTORING SESSION...
+        </Text>
+      </View>
+    );
+  }
 
   // LOGGED IN PROFILE VIEW (Matches Screenshot 2)
   if (user) {
@@ -688,8 +753,8 @@ export const AccountScreen: React.FC = () => {
             {historyTab === 'retail'
               ? 'Retail Order History'
               : historyTab === 'wholesale'
-              ? 'Wholesale Quote History'
-              : 'Saved Wishlist Items'}
+                ? 'Wholesale Quote History'
+                : 'Saved Wishlist Items'}
           </Text>
 
           {historyTab === 'wishlist' ? (
@@ -760,8 +825,8 @@ export const AccountScreen: React.FC = () => {
                 {historyTab === 'retail' && wholesaleQuotes.length > 0
                   ? `You have ${wholesaleQuotes.length} Wholesale quote request(s). Tap the Wholesale tab above to view them.`
                   : historyTab === 'wholesale' && retailOrders.length > 0
-                  ? `You have ${retailOrders.length} Retail order(s). Tap the Retail tab above to view them.`
-                  : 'Explore our fine silver collections and place your first order.'}
+                    ? `You have ${retailOrders.length} Retail order(s). Tap the Retail tab above to view them.`
+                    : 'Explore our fine silver collections and place your first order.'}
               </Text>
 
               {historyTab === 'retail' && wholesaleQuotes.length > 0 ? (
@@ -800,10 +865,10 @@ export const AccountScreen: React.FC = () => {
                     <Text style={styles.orderDateText}>
                       {ord.created_at
                         ? new Date(ord.created_at).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
                         : 'Recent Order'}
                     </Text>
                   </View>
@@ -816,8 +881,8 @@ export const AccountScreen: React.FC = () => {
                           ord.status?.toUpperCase().includes('ACCEPTED') ||
                           ord.status?.toUpperCase().includes('APPROVED') ||
                           ord.status?.toUpperCase().includes('ISSUED')
-                        ? styles.statusDelivered
-                        : styles.statusPlaced,
+                          ? styles.statusDelivered
+                          : styles.statusPlaced,
                     ]}
                   >
                     <Text
@@ -829,8 +894,8 @@ export const AccountScreen: React.FC = () => {
                             ord.status?.toUpperCase().includes('ACCEPTED') ||
                             ord.status?.toUpperCase().includes('APPROVED') ||
                             ord.status?.toUpperCase().includes('ISSUED')
-                          ? styles.statusDeliveredText
-                          : styles.statusPlacedText,
+                            ? styles.statusDeliveredText
+                            : styles.statusPlacedText,
                       ]}
                     >
                       {ord.status || 'ORDER PLACED'}
@@ -848,7 +913,7 @@ export const AccountScreen: React.FC = () => {
                   const subtotal = item.subtotal || unitPrice * (item.quantity || 1);
                   const pRef = (productMap && productMap[item.product_id]) || {};
                   const itemSku = item.product_sku || item.sku || pRef.sku || (item.product_id ? `SBS-DT-00${item.product_id}` : 'SBS-DT-003-2IN');
-                  
+
                   const rawSize = item.size || item.measurement || (item.variant ? (item.variant.size || item.variant.measurement) : '') || pRef.size || pRef.measurement || (pRef.height_in ? `Height: ${pRef.height_in} in, Diameter: ${pRef.diameter_in} in` : '');
                   const itemSize = rawSize || (itemTitle.toLowerCase().includes('urli') ? 'Height: 3.5 in, Diameter: 4.5 in' : itemTitle.toLowerCase().includes('bowl') ? '2 inch' : 'Height: 3.5 in, Diameter: 4.5 in');
 
@@ -859,7 +924,7 @@ export const AccountScreen: React.FC = () => {
                         <Text style={styles.orderItemTitleText} numberOfLines={2}>
                           {itemTitle}
                         </Text>
-                        
+
                         {itemSku ? (
                           <Text style={styles.orderItemSkuText}>SKU: {itemSku}</Text>
                         ) : null}
@@ -922,58 +987,53 @@ export const AccountScreen: React.FC = () => {
           )}
         </ScrollView>
 
-          {/* EDIT ADDRESS / PROFILE MODAL */}
-          <EditAddressModal
-            visible={isEditAddressOpen || isEditProfileOpen}
-            onClose={() => {
-              setIsEditAddressOpen(false);
-              setIsEditProfileOpen(false);
-            }}
-            initialData={savedAddress}
-            onSave={async (data) => {
-              setSavedAddress(data);
-              const formattedAddress = `${data.street}\n${data.city}, ${data.state} - ${data.pincode}`;
+        {/* EDIT ADDRESS / PROFILE MODAL */}
+        <EditAddressModal
+          visible={isEditAddressOpen || isEditProfileOpen}
+          onClose={() => {
+            setIsEditAddressOpen(false);
+            setIsEditProfileOpen(false);
+          }}
+          initialData={savedAddress}
+          onSave={async (data) => {
+            setSavedAddress(data);
+            const formattedAddress = `${data.street}\n${data.city}, ${data.state} - ${data.pincode}`;
 
-              // 1. Local AsyncStorage persistence
-              await AsyncStorage.setItem('user_saved_address', JSON.stringify(data));
+            // 1. Local AsyncStorage persistence
+            await AsyncStorage.setItem('user_saved_address', JSON.stringify(data));
 
-              // 2. Sync to Backend Server (updates backend database / users.json)
-              try {
-                await api.post('/auth/address', {
-                  email: user?.email,
-                  full_name: data.fullName,
-                  phone: data.phone,
-                  street: data.street,
-                  city: data.city,
-                  state: data.state,
-                  pincode: data.pincode,
-                  address: formattedAddress,
-                });
-              } catch (e) {
-                try {
-                  await api.put('/auth/profile', {
-                    full_name: data.fullName,
-                    phone: data.phone,
-                    address: formattedAddress,
-                  });
-                } catch (err) {}
-              }
+            // 2. Sync to Backend Server (updates backend database via PUT /auth/me)
+            try {
+              await authApi.updateMe({
+                name: data.fullName,
+                full_name: data.fullName,
+                phone: data.phone,
+                street_address: data.street,
+                street: data.street,
+                city: data.city,
+                state: data.state,
+                pincode: data.pincode,
+                address: formattedAddress,
+              });
+            } catch (e) {
+              console.log('AccountScreen updateMe error:', e);
+            }
 
-              // 3. Update AuthContext user state & storage
-              if (user) {
-                updateUser({
-                  ...user,
-                  full_name: data.fullName,
-                  phone: data.phone,
-                  street: data.street,
-                  city: data.city,
-                  state: data.state,
-                  pincode: data.pincode,
-                  address: formattedAddress,
-                });
-              }
-            }}
-          />
+            // 3. Update AuthContext user state & storage
+            if (user) {
+              updateUser({
+                ...user,
+                full_name: data.fullName,
+                phone: data.phone,
+                street: data.street,
+                city: data.city,
+                state: data.state,
+                pincode: data.pincode,
+                address: formattedAddress,
+              });
+            }
+          }}
+        />
       </View>
     );
   }
@@ -982,6 +1042,7 @@ export const AccountScreen: React.FC = () => {
   return (
     <View style={{ flex: 1, backgroundColor: '#FAF9F6' }}>
       <ScrollView
+        ref={authScrollViewRef}
         style={{ flex: 1 }}
         contentContainerStyle={{
           flexGrow: 1,
@@ -1049,10 +1110,15 @@ export const AccountScreen: React.FC = () => {
               onChangeText={(text) => {
                 setEmail(text);
                 if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: '' }));
+                if (registrationApiError) setRegistrationApiError(null);
               }}
             />
           </View>
-          {formErrors.email ? <Text style={styles.errorText}>{formErrors.email}</Text> : null}
+          {formErrors.email ? (
+            <View style={styles.fieldErrorRow}>
+              <Text style={styles.fieldErrorText}>❌ {formErrors.email.replace(/^❌\s*/, '')}</Text>
+            </View>
+          ) : null}
 
           <Text style={styles.label}>PASSWORD *</Text>
           <View style={[styles.inputWithIconContainer, formErrors.password ? styles.inputError : null]}>
@@ -1103,13 +1169,18 @@ export const AccountScreen: React.FC = () => {
                 onChangeText={(text) => {
                   setPhone(text);
                   if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: '' }));
+                  if (registrationApiError) setRegistrationApiError(null);
                 }}
                 countryCode={countryCode}
                 onChangeCountryCode={setCountryCode}
                 placeholder="98765 43210"
                 error={!!formErrors.phone}
               />
-              {formErrors.phone ? <Text style={styles.errorText}>{formErrors.phone}</Text> : null}
+              {formErrors.phone ? (
+                <View style={styles.fieldErrorRow}>
+                  <Text style={styles.fieldErrorText}>❌ {formErrors.phone.replace(/^❌\s*/, '')}</Text>
+                </View>
+              ) : null}
 
               <Text style={styles.label}>COMPANY / BUSINESS NAME (WHOLESALE)</Text>
               <View style={styles.inputWithIconContainer}>
@@ -1247,6 +1318,14 @@ export const AccountScreen: React.FC = () => {
             </>
           )}
 
+          {/* API Error Card Banner */}
+          {registrationApiError ? (
+            <View style={styles.apiErrorCard}>
+              <Text style={{ fontSize: 14 }}>❌</Text>
+              <Text style={styles.apiErrorCardText}>{registrationApiError}</Text>
+            </View>
+          ) : null}
+
           {/* Submit Button */}
           <TouchableOpacity
             style={[styles.submitBtn, (loading || googleLoading) && { opacity: 0.6 }]}
@@ -1272,7 +1351,11 @@ export const AccountScreen: React.FC = () => {
               {authTab === 'login' ? "Don't have an account? " : 'Already have an account? '}
             </Text>
             <TouchableOpacity
-              onPress={() => setAuthTab(authTab === 'login' ? 'register' : 'login')}
+              onPress={() => {
+                setAuthTab(authTab === 'login' ? 'register' : 'login');
+                setFormErrors({});
+                setRegistrationApiError(null);
+              }}
             >
               <Text style={styles.bottomRegisterLink}>
                 {authTab === 'login' ? 'Register Here' : 'Sign In'}
@@ -1714,6 +1797,36 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: 4,
     marginLeft: 2,
+  },
+  fieldErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 6,
+    marginLeft: 2,
+  },
+  fieldErrorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  apiErrorCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F87171',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  apiErrorCardText: {
+    color: '#991B1B',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
   },
   modalBackdrop: {
     flex: 1,

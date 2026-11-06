@@ -34,9 +34,11 @@ import {
   ChevronDown,
   FileText,
   ExternalLink,
+  Camera,
 } from 'lucide-react-native';
 import { AppVideoPlayer } from '../components/AppVideoPlayer';
 import { VideoPlayerModal } from '../components/VideoPlayerModal';
+import { AtelierPhotoGallery } from '../components/AtelierPhotoGallery';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BASE_URL = 'https://www.saibalajisilverworkspvtltd.com';
@@ -234,19 +236,21 @@ export const AboutScreen: React.FC = () => {
         >
           <Image
             source={require('../../assets/heritage_craftsman.jpg')}
-            style={{ ...StyleSheet.absoluteFill, opacity: 0.55 }}
+            style={styles.videoCardBgImage}
             resizeMode="cover"
           />
-          <View style={styles.docBadge}>
-            <Text style={styles.docBadgeText}>COMPANY DOCUMENTARY VIDEO</Text>
-          </View>
+          <View style={styles.videoCardInner}>
+            <View style={styles.docBadge}>
+              <Text style={styles.docBadgeText}>COMPANY DOCUMENTARY VIDEO</Text>
+            </View>
 
-          <Text style={styles.videoTitle}>{docVideoData.title}</Text>
+            <Text style={styles.videoTitle}>{docVideoData.title}</Text>
 
-          <Text style={styles.videoDesc}>{docVideoData.description}</Text>
+            <Text style={styles.videoDesc}>{docVideoData.description}</Text>
 
-          <View style={styles.playButtonCircle}>
-            <Play size={20} color="#1A1918" fill="#1A1918" style={{ marginLeft: 2 }} />
+            <View style={styles.playButtonCircle}>
+              <Play size={20} color="#1A1918" fill="#1A1918" style={{ marginLeft: 2 }} />
+            </View>
           </View>
         </TouchableOpacity>
 
@@ -345,6 +349,32 @@ export const AboutScreen: React.FC = () => {
               Trusted wholesale partner for jewellers, corporate houses, and temples requiring reliable bulk supply.
             </Text>
           </View>
+        </View>
+
+        {/* ========================================================================= */}
+        {/* ATELIER & CRAFTSMANSHIP PHOTO GALLERY (MATCHING IMAGE 3, 4, 5)             */}
+        {/* ========================================================================= */}
+        <View style={styles.atelierSectionContainer}>
+          <View style={styles.atelierSectionDivider} />
+
+          {/* BADGE: [Camera Icon] ATELIER & CRAFTSMANSHIP */}
+          <View style={styles.atelierBadgeRow}>
+            <View style={styles.atelierCameraIconBox}>
+              <Camera size={14} color="#B9A77A" />
+            </View>
+            <Text style={styles.atelierBadgeText}>ATELIER & CRAFTSMANSHIP</Text>
+          </View>
+
+          {/* TITLE: Workshop & Atelier Photo Gallery */}
+          <Text style={styles.atelierTitle}>Workshop & Atelier Photo Gallery</Text>
+
+          {/* SUBTITLE: Step inside our Tenali manufacturing facility... */}
+          <Text style={styles.atelierSubtitle}>
+            Step inside our Tenali manufacturing facility. Unfiltered glimpses of ancestral silversmithing, heavy industrial presses, and fine hand-finishing.
+          </Text>
+
+          {/* 3D COVERFLOW GALLERY (FETCHED FROM API, STYLED LIKE IMAGE 3) */}
+          <AtelierPhotoGallery />
         </View>
 
         {/* ========================================================================= */}
@@ -585,13 +615,30 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#000000',
     borderRadius: 24,
-    padding: 22,
     marginBottom: 32,
+    overflow: 'hidden',
+    position: 'relative',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
+  },
+  videoCardBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    opacity: 0.52,
+  },
+  videoCardInner: {
+    padding: 22,
+    position: 'relative',
+    zIndex: 1,
   },
   docBadge: {
     backgroundColor: '#B9A77A',
@@ -1218,6 +1265,59 @@ const styles = StyleSheet.create({
   legalCardSub: {
     fontSize: 12,
     color: '#888888',
+  },
+
+  /* Workshop & Atelier Photo Gallery Section (Image 4 & 5) */
+  atelierSectionContainer: {
+    width: '100%',
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  atelierSectionDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#EAE6DF',
+    marginBottom: 24,
+  },
+  atelierBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  atelierCameraIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F6F0E6',
+    borderWidth: 1,
+    borderColor: '#EFE5CC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  atelierBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#B9A77A',
+    letterSpacing: 1.4,
+  },
+  atelierTitle: {
+    fontSize: 26,
+    fontWeight: '400',
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    color: '#1A1918',
+    marginBottom: 8,
+    lineHeight: 32,
+  },
+  atelierSubtitle: {
+    fontSize: 13.5,
+    color: '#555555',
+    lineHeight: 21,
+    marginBottom: 14,
   },
 });
 

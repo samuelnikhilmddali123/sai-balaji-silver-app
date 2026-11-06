@@ -21,18 +21,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
   const inWishlist = isInWishlist(product.id);
   const isOutOfStock = isProductFullyOutOfStock(product);
 
-  const categoryName = product.subcategory
-    ? `${(product.category_slug || 'Silver').replace(/-/g, ' ').toUpperCase()} • ${product.subcategory.toUpperCase()}`
-    : (product.category?.name || product.category_slug || 'SILVER DINING & TABLEWARE').replace(/-/g, ' ').toUpperCase();
+  const categoryName = (product.category?.name || product.category_slug || 'SILVER ARTICLES')
+    .replace(/-/g, ' ')
+    .toUpperCase();
 
-  const formattedSku = product.sku || `SBS-DT-${product.id.toString().padStart(3, '0')}`;
-  
   // Calculate live current price second-by-second tied to website silver rate
   const displayPrice = calculateCurrentPrice(product);
 
   const priceVal = displayPrice > 0
-    ? displayPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : (product.retail_price ? product.retail_price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A');
+    ? displayPrice.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+    : (product.retail_price ? product.retail_price.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : 'N/A');
 
   return (
     <TouchableOpacity
@@ -79,18 +77,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
           {categoryName}
         </Text>
 
-        {/* Product Title */}
-        <Text style={styles.title} numberOfLines={2}>
-          {product.title}
+        {/* Product Title (Bodoni Serif Uppercase matching Image 2) */}
+        <Text style={styles.title} numberOfLines={1}>
+          {product.title ? product.title.toUpperCase() : ''}
         </Text>
-
-        {/* SKU Code */}
-        <Text style={styles.skuText} numberOfLines={1}>
-          SKU: {formattedSku}
-        </Text>
-
-        {/* Thin Divider Line */}
-        <View style={styles.divider} />
 
         {/* Price / Wholesale Row */}
         {isWholesale ? (
@@ -115,6 +105,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onPress, widt
             <Text style={styles.priceValue}>₹{priceVal}</Text>
           </View>
         )}
+
+        {/* Thin Divider Line placed BELOW price and above VIEW DETAILS button */}
+        <View style={styles.divider} />
 
         {/* Full-width Action Button */}
         {isOutOfStock ? (
@@ -195,26 +188,25 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    color: '#111111',
-    fontSize: 13.5,
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    lineHeight: 18,
-    height: 36,
-  },
-  skuText: {
-    color: '#888888',
-    fontSize: 10.5,
-    marginTop: 3,
-    marginBottom: 4,
+    color: '#1A1918',
+    fontSize: 14,
+    fontFamily: Platform.select({
+      ios: 'BodoniModa_400Regular',
+      android: 'BodoniModa_400Regular',
+      default: 'BodoniModa_400Regular, Bodoni 72, serif',
+    }),
+    letterSpacing: 0.6,
+    marginTop: 2,
+    marginBottom: 8,
   },
   divider: {
     height: 1,
     backgroundColor: '#EAE6DF',
-    marginVertical: 6,
+    marginTop: 10,
+    marginBottom: 10,
   },
   priceRow: {
-    marginVertical: 4,
+    marginVertical: 2,
   },
   fromRow: {
     flexDirection: 'row',

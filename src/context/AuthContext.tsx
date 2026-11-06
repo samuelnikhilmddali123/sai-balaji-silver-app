@@ -3,7 +3,8 @@ import { Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
-import api, { authApi } from '../services/api';
+import api, { authApi, setUnauthorizedCallback } from '../services/api';
+import sessionManager from '../services/sessionManager';
 import { auth, signOut as firebaseSignOut } from '../services/firebase';
 import { setAdminPhoneNumber } from '../services/photoShare';
 import { User } from '../types';
@@ -11,10 +12,13 @@ import { User } from '../types';
 // Ensure any in-progress auth sessions are completed on web/custom tab redirect
 WebBrowser.maybeCompleteAuthSession();
 
+export type AuthState = 'LOADING' | 'AUTHENTICATED' | 'UNAUTHENTICATED';
+
 interface AuthContextType {
   user: User | null;
   userToken: string | null;
   isLoading: boolean;
+  authState: AuthState;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   register: (payload: {
@@ -44,8 +48,10 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [authState, setAuthState] = useState<AuthState>('LOADING');
   const [isGoogleAuthInProgress, setIsGoogleAuthInProgress] = useState<boolean>(false);
+
+  const isLoading = authState === 'LOADING';
 
   const fetchAndMergeUserDetails = async (initialUser: User): Promise<User> => {
     try {
@@ -54,11 +60,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (meRes && meRes.data) {
         const meData = meRes.data.user || meRes.data;
         if (meData && (meData.email || meData.id)) {
-          return {
+          const streetVal =
+            meData.street_address ||
+            meData.street ||
+            meData.address ||
+            initialUser.street_address ||
+            initialUser.street ||
+            initialUser.address ||
+            '';
+          const cityVal = meData.city || initialUser.city || '';
+          const stateVal = meData.state || initialUser.state || '';
+          const pincodeVal = meData.pincode || initialUser.pincode || '';
+          const phoneVal = meData.phone || initialUser.phone || '';
+          const fullNameVal = meData.full_name || meData.name || initialUser.full_name || '';
+
+          const formattedAddress = [
+            streetVal,
+            cityVal,
+            stateVal ? `${stateVal}${pincodeVal ? ` - ${pincodeVal}` : ''}` : pincodeVal,
+          ]
+            .filter(Boolean)
+            .join('\n');
+
+          const mergedUser: User = {
             ...initialUser,
             ...meData,
-            full_name: meData.full_name || meData.name || initialUser.full_name || '',
+            full_name: fullNameVal,
+            phone: phoneVal,
+            street_address: streetVal,
+            street: streetVal,
+            city: cityVal,
+            state: stateVal,
+            pincode: pincodeVal,
+            address: formattedAddress || initialUser.address || '',
+            company_name: meData.company_name || initialUser.company_name || '',
+            gstin: meData.gstin || initialUser.gstin || '',
           };
+
+          if (streetVal || cityVal || pincodeVal || phoneVal) {
+            const addressData = {
+              fullName: mergedUser.full_name,
+              phone: mergedUser.phone,
+              street: streetVal,
+              city: cityVal,
+              state: stateVal,
+              pincode: pincodeVal,
+            };
+            await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
+          }
+
+          if ((mergedUser.role === 'ADMIN' || mergedUser.email?.toLowerCase().includes('admin')) && mergedUser.phone) {
+            setAdminPhoneNumber(mergedUser.phone);
+          }
+
+          return mergedUser;
         }
       }
       // 2. Fallback to /users list check if /auth/me is not available
@@ -81,6 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const cityVal = matchingUser.city || initialUser.city || '';
           const stateVal = matchingUser.state || initialUser.state || '';
           const pincodeVal = matchingUser.pincode || initialUser.pincode || '';
+          const phoneVal = matchingUser.phone || initialUser.phone || '';
 
           const formattedAddress = [
             streetVal,
@@ -94,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...initialUser,
             ...matchingUser,
             full_name: matchingUser.full_name || matchingUser.name || initialUser.full_name || '',
-            phone: matchingUser.phone || initialUser.phone || '',
+            phone: phoneVal,
             street_address: streetVal,
             street: streetVal,
             city: cityVal,
@@ -133,49 +189,178 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkLoggedIn = async () => {
     try {
-      let storedToken = await AsyncStorage.getItem('userToken');
-      if (!storedToken) {
-        try {
-          storedToken = await SecureStore.getItemAsync('userToken');
-          if (storedToken) {
-            await AsyncStorage.setItem('userToken', storedToken);
+      setAuthState('LOADING');
+      // 1. Read persistent session from unified SessionManager
+      const session = await sessionManager.getSession();
+
+      if (session.token && session.user) {
+        // FAST PATH: Restore state immediately from persistent storage
+        setUserToken(session.token);
+        setUser(session.user);
+        setAuthState('AUTHENTICATED');
+
+        if ((session.user.role === 'ADMIN' || session.user.email?.toLowerCase().includes('admin')) && session.user.phone) {
+          setAdminPhoneNumber(session.user.phone);
+        }
+
+        // Background verification & profile synchronization
+        (async () => {
+          try {
+            const meRes = await authApi.getMe();
+            if (meRes && meRes.data) {
+              const meUser = meRes.data.user || meRes.data;
+              if (meUser && (meUser.email || meUser.id)) {
+                const streetVal =
+                  meUser.street_address ||
+                  meUser.street ||
+                  meUser.address ||
+                  session.user?.street_address ||
+                  session.user?.street ||
+                  '';
+                const cityVal = meUser.city || session.user?.city || '';
+                const stateVal = meUser.state || session.user?.state || '';
+                const pincodeVal = meUser.pincode || session.user?.pincode || '';
+                const phoneVal = meUser.phone || session.user?.phone || '';
+                const fullNameVal = meUser.full_name || meUser.name || session.user?.full_name || '';
+
+                const formattedAddress = [
+                  streetVal,
+                  cityVal,
+                  stateVal ? `${stateVal}${pincodeVal ? ` - ${pincodeVal}` : ''}` : pincodeVal,
+                ]
+                  .filter(Boolean)
+                  .join('\n');
+
+                const refreshedUser: User = {
+                  ...session.user,
+                  ...meUser,
+                  full_name: fullNameVal,
+                  phone: phoneVal,
+                  street_address: streetVal,
+                  street: streetVal,
+                  city: cityVal,
+                  state: stateVal,
+                  pincode: pincodeVal,
+                  address: formattedAddress || session.user?.address || '',
+                };
+                setUser(refreshedUser);
+                await sessionManager.updateUser(refreshedUser);
+
+                if (streetVal || cityVal || pincodeVal || phoneVal) {
+                  await AsyncStorage.setItem(
+                    'user_saved_address',
+                    JSON.stringify({
+                      fullName: refreshedUser.full_name,
+                      phone: refreshedUser.phone,
+                      street: streetVal,
+                      city: cityVal,
+                      state: stateVal,
+                      pincode: pincodeVal,
+                    })
+                  );
+                }
+              }
+            }
+          } catch (bgErr: any) {
+            if (bgErr?.response?.status === 401) {
+              console.warn('[AuthContext] Stored token rejected with 401 on startup. Clearing session.');
+              await sessionManager.clearSession();
+              setUser(null);
+              setUserToken(null);
+              setAuthState('UNAUTHENTICATED');
+            } else {
+              // Network error or timeout: keep valid persisted user session
+              console.log('[AuthContext] Background profile sync skipped; maintaining persisted session.');
+            }
           }
-        } catch (secErr) {}
+        })();
+        return;
       }
-      const storedUser = await AsyncStorage.getItem('userData');
-      if (storedToken) {
-        setUserToken(storedToken);
-        let currentUser: User | null = storedUser ? JSON.parse(storedUser) : null;
-        
-        // Call GET /auth/me with Bearer token
+
+      if (session.token && !session.user) {
+        // Token exists but user info was missing or corrupted, attempt recovery via /auth/me
         try {
           const meRes = await authApi.getMe();
           if (meRes && meRes.data) {
             const meUser = meRes.data.user || meRes.data;
-            currentUser = {
-              ...currentUser,
-              ...meUser,
-              full_name: meUser.full_name || meUser.name || currentUser?.full_name || '',
-            };
-          }
-        } catch (meErr) {
-          console.log('GET /auth/me call fallback to stored local user:', meErr);
-        }
+            const streetVal = meUser.street_address || meUser.street || meUser.address || '';
+            const cityVal = meUser.city || '';
+            const stateVal = meUser.state || '';
+            const pincodeVal = meUser.pincode || '';
+            const phoneVal = meUser.phone || '';
+            const fullNameVal = meUser.full_name || meUser.name || 'User';
 
-        if (currentUser) {
-          const updatedUser = await fetchAndMergeUserDetails(currentUser);
-          setUser(updatedUser);
-          await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
+            const formattedAddress = [
+              streetVal,
+              cityVal,
+              stateVal ? `${stateVal}${pincodeVal ? ` - ${pincodeVal}` : ''}` : pincodeVal,
+            ]
+              .filter(Boolean)
+              .join('\n');
+
+            const recoveredUser: User = {
+              id: meUser.id || Date.now(),
+              email: meUser.email || '',
+              full_name: fullNameVal,
+              phone: phoneVal,
+              role: meUser.role || 'CUSTOMER',
+              street_address: streetVal,
+              street: streetVal,
+              city: cityVal,
+              state: stateVal,
+              pincode: pincodeVal,
+              address: formattedAddress,
+              is_active: meUser.is_active ?? true,
+              ...meUser,
+            };
+            await sessionManager.saveSession(session.token, recoveredUser);
+            setUserToken(session.token);
+            setUser(recoveredUser);
+            setAuthState('AUTHENTICATED');
+
+            if (streetVal || cityVal || pincodeVal || phoneVal) {
+              await AsyncStorage.setItem(
+                'user_saved_address',
+                JSON.stringify({
+                  fullName: recoveredUser.full_name,
+                  phone: recoveredUser.phone,
+                  street: streetVal,
+                  city: cityVal,
+                  state: stateVal,
+                  pincode: pincodeVal,
+                })
+              );
+            }
+            return;
+          }
+        } catch (recoverErr: any) {
+          console.warn('[AuthContext] Incomplete session could not be verified, clearing.');
+          await sessionManager.clearSession();
         }
       }
+
+      // No session found in persistent storage
+      setUser(null);
+      setUserToken(null);
+      setAuthState('UNAUTHENTICATED');
     } catch (e) {
       console.error('Auth check error:', e);
-    } finally {
-      setIsLoading(false);
+      setUser(null);
+      setUserToken(null);
+      setAuthState('UNAUTHENTICATED');
     }
   };
 
   useEffect(() => {
+    // Register 401 Unauthorized handler to automatically clear session
+    setUnauthorizedCallback(async () => {
+      console.log('[AuthContext] Received 401 Unauthorized from API. Logging out.');
+      await sessionManager.clearSession().catch(() => {});
+      setUser(null);
+      setUserToken(null);
+      setAuthState('UNAUTHENTICATED');
+    });
+
     checkLoggedIn();
   }, []);
 
@@ -185,14 +370,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = res.data.access_token || res.data.token || res.data.jwt;
       const loggedUser = res.data.user || res.data.profile || { email };
       if (token) {
-        setUserToken(token);
-        await AsyncStorage.setItem('userToken', token);
         const fullUser = await fetchAndMergeUserDetails({
           ...loggedUser,
           full_name: loggedUser.full_name || loggedUser.name || '',
         });
+        await sessionManager.saveSession(token, fullUser);
+        setUserToken(token);
         setUser(fullUser);
-        await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
+        setAuthState('AUTHENTICATED');
         return true;
       }
       return false;
@@ -207,10 +392,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: email.toLowerCase().includes('admin') ? 'ADMIN' : 'CUSTOMER',
           is_active: true,
         };
+        await sessionManager.saveSession(localToken, localUser);
         setUserToken(localToken);
         setUser(localUser);
-        await AsyncStorage.setItem('userToken', localToken);
-        await AsyncStorage.setItem('userData', JSON.stringify(localUser));
+        setAuthState('AUTHENTICATED');
         return true;
       }
       throw new Error(error?.response?.data?.detail || error?.response?.data?.message || 'Invalid login credentials');
@@ -219,15 +404,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const processCodeExchange = async (code: string): Promise<boolean> => {
     try {
-      // 1. Immediately wipe previous authentication and user state in memory & storage
+      // 1. Clear any prior in-memory & stored session
+      await sessionManager.clearSession();
       setUser(null);
       setUserToken(null);
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
-      await AsyncStorage.removeItem('user_saved_address');
-      try {
-        await SecureStore.deleteItemAsync('userToken');
-      } catch (secErr) {}
 
       // 2. Call backend token exchange endpoint: POST /auth/mobile/exchange
       const res = await authApi.exchangeMobileAuthCode(code);
@@ -244,13 +424,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('No user data returned from authentication exchange.');
       }
 
-      // 3. Save access_token securely
-      await AsyncStorage.setItem('userToken', token);
-      try {
-        await SecureStore.setItemAsync('userToken', token);
-      } catch (secErr) {}
-
-      // 4. Construct user profile and merge details
+      // 3. Construct user profile
       const initialUser: User = {
         id: returnedUser.id || Date.now(),
         email: returnedUser.email || '',
@@ -269,10 +443,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...returnedUser,
       };
 
-      const fullUser = await fetchAndMergeUserDetails(initialUser);
+      // 4. CRITICAL: Persist session IMMEDIATELY so it survives process death right away
+      await sessionManager.saveSession(token, initialUser);
       setUserToken(token);
-      setUser(fullUser);
-      await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
+      setUser(initialUser);
+      setAuthState('AUTHENTICATED');
+
+      if ((initialUser.role === 'ADMIN' || initialUser.email?.toLowerCase().includes('admin')) && initialUser.phone) {
+        setAdminPhoneNumber(initialUser.phone);
+      }
+
+      // 5. Asynchronously enhance user profile in background without blocking
+      fetchAndMergeUserDetails(initialUser)
+        .then(async (fullUser) => {
+          setUser(fullUser);
+          await sessionManager.updateUser(fullUser);
+        })
+        .catch(() => {});
 
       return true;
     } catch (err: any) {
@@ -435,31 +622,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         country: payload.country || 'India',
       };
 
-      const res = await authApi.register(fullPayload).catch(() => api.post('/auth/register', fullPayload));
+      const res = await authApi.register(fullPayload);
       const token = res.data.access_token || res.data.token;
       const registeredUser = res.data.user || res.data.profile;
       if (token) {
+        // 1. Immediately persist address, phone, and name to backend via PUT /auth/me
+        // Backend DB persists address columns during PUT /auth/me (same as website).
+        try {
+          await authApi.updateMe(
+            {
+              name: fullPayload.full_name,
+              full_name: fullPayload.full_name,
+              phone: fullPayload.phone || '',
+              street_address: streetCombined,
+              street: streetCombined,
+              address: formattedAddress,
+              city: fullPayload.city || '',
+              state: fullPayload.state || '',
+              pincode: fullPayload.pincode || '',
+              country: fullPayload.country || 'India',
+              company_name: fullPayload.company_name || '',
+              gstin: fullPayload.gstin || '',
+            },
+            token
+          );
+        } catch (updateMeErr) {
+          console.log('[AuthContext] Initial profile sync after register:', updateMeErr);
+        }
+
+        const baseUser: User = {
+          ...(registeredUser || {}),
+          id: registeredUser?.id || Date.now(),
+          email: fullPayload.email,
+          full_name: fullPayload.full_name,
+          phone: fullPayload.phone || '',
+          street_address: streetCombined,
+          street: streetCombined,
+          address: formattedAddress,
+          city: fullPayload.city || '',
+          state: fullPayload.state || '',
+          pincode: fullPayload.pincode || '',
+          country: fullPayload.country || 'India',
+          company_name: fullPayload.company_name || '',
+          gstin: fullPayload.gstin || '',
+          role: registeredUser?.role || 'CUSTOMER',
+          is_active: true,
+        };
+
+        const fullUser = await fetchAndMergeUserDetails(baseUser);
+        await sessionManager.saveSession(token, fullUser);
         setUserToken(token);
-        await AsyncStorage.setItem('userToken', token);
-        const fullUser = await fetchAndMergeUserDetails(
-          registeredUser ||
-            ({
-              ...fullPayload,
-              id: Date.now(),
-              role: 'CUSTOMER',
-              is_active: true,
-            } as User)
-        );
         setUser(fullUser);
-        await AsyncStorage.setItem('userData', JSON.stringify(fullUser));
+        setAuthState('AUTHENTICATED');
 
         const addressData = {
-          fullName: fullPayload.full_name,
-          phone: fullPayload.phone,
-          street: streetCombined,
-          city: fullPayload.city,
-          state: fullPayload.state,
-          pincode: fullPayload.pincode,
+          fullName: fullUser.full_name,
+          phone: fullUser.phone,
+          street: fullUser.street_address || streetCombined,
+          city: fullUser.city || fullPayload.city,
+          state: fullUser.state || fullPayload.state,
+          pincode: fullUser.pincode || fullPayload.pincode,
         };
         await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
 
@@ -496,10 +718,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'CUSTOMER',
           is_active: true,
         };
+        await sessionManager.saveSession(localToken, localUser);
         setUserToken(localToken);
         setUser(localUser);
-        await AsyncStorage.setItem('userToken', localToken);
-        await AsyncStorage.setItem('userData', JSON.stringify(localUser));
+        setAuthState('AUTHENTICATED');
 
         const addressData = {
           fullName: localUser.full_name,
@@ -513,47 +735,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return true;
       }
-      throw new Error(error?.response?.data?.detail || error?.response?.data?.message || 'Registration failed');
+
+      const errData = error?.response?.data;
+      const errDetail = errData?.detail;
+      let errMsg = '';
+      if (typeof errDetail === 'string') {
+        errMsg = errDetail;
+      } else if (Array.isArray(errDetail) && errDetail[0]?.msg) {
+        errMsg = errDetail[0].msg;
+      } else if (typeof errData?.message === 'string') {
+        errMsg = errData.message;
+      } else if (typeof error?.message === 'string') {
+        errMsg = error.message;
+      } else {
+        errMsg = 'Registration failed';
+      }
+
+      const enrichedError: any = new Error(errMsg);
+      enrichedError.response = error?.response;
+      enrichedError.status = error?.response?.status;
+      enrichedError.data = errData;
+      enrichedError.detail = errMsg;
+      enrichedError.emailExists = Boolean(errData?.emailExists);
+      enrichedError.phoneExists = Boolean(errData?.phoneExists);
+      throw enrichedError;
     }
   };
 
   const updateUser = async (updatedUser: User) => {
     setUser(updatedUser);
-    await AsyncStorage.setItem('userData', JSON.stringify(updatedUser));
-    const streetVal = updatedUser.street_address || updatedUser.street || '';
+    await sessionManager.updateUser(updatedUser);
+
+    const streetVal = (updatedUser.street_address || updatedUser.street || updatedUser.address || '').trim();
+    const cityVal = (updatedUser.city || '').trim();
+    const stateVal = (updatedUser.state || '').trim();
+    const pincodeVal = (updatedUser.pincode || '').trim();
+    const phoneVal = (updatedUser.phone || '').trim();
+    const fullNameVal = (updatedUser.full_name || (updatedUser as any).name || '').trim();
+
+    const formattedAddress = updatedUser.address || [
+      streetVal,
+      cityVal,
+      stateVal ? `${stateVal}${pincodeVal ? ` - ${pincodeVal}` : ''}` : pincodeVal,
+    ].filter(Boolean).join('\n');
+
     const addressData = {
-      fullName: updatedUser.full_name,
-      phone: updatedUser.phone || '',
+      fullName: fullNameVal,
+      phone: phoneVal,
       street: streetVal,
-      city: updatedUser.city || '',
-      state: updatedUser.state || '',
-      pincode: updatedUser.pincode || '',
+      city: cityVal,
+      state: stateVal,
+      pincode: pincodeVal,
     };
     await AsyncStorage.setItem('user_saved_address', JSON.stringify(addressData));
-    if ((updatedUser.role === 'ADMIN' || updatedUser.email?.toLowerCase().includes('admin')) && updatedUser.phone) {
-      setAdminPhoneNumber(updatedUser.phone);
+
+    if ((updatedUser.role === 'ADMIN' || updatedUser.email?.toLowerCase().includes('admin')) && phoneVal) {
+      setAdminPhoneNumber(phoneVal);
     }
+
     try {
       await authApi.updateMe({
-        name: updatedUser.full_name,
-        full_name: updatedUser.full_name,
-        phone: updatedUser.phone,
-        address: updatedUser.address,
-        company_name: updatedUser.company_name,
-        gstin: updatedUser.gstin,
+        name: fullNameVal,
+        full_name: fullNameVal,
+        phone: phoneVal,
+        street_address: streetVal,
+        street: streetVal,
+        address: formattedAddress,
+        city: cityVal,
+        state: stateVal,
+        pincode: pincodeVal,
+        country: updatedUser.country || 'India',
+        company_name: updatedUser.company_name || '',
+        gstin: updatedUser.gstin || '',
       }).catch(() => api.put('/auth/profile', updatedUser));
-    } catch (e) {}
+    } catch (e) {
+      console.log('[AuthContext] updateUser API error:', e);
+    }
   };
 
   const logout = async () => {
     setUser(null);
     setUserToken(null);
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userData');
-    await AsyncStorage.removeItem('user_saved_address');
-    try {
-      await SecureStore.deleteItemAsync('userToken');
-    } catch (e) {}
+    setAuthState('UNAUTHENTICATED');
+    await sessionManager.clearSession();
     try {
       if (auth) {
         await firebaseSignOut(auth);
@@ -571,6 +835,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         userToken,
         isLoading,
+        authState,
         login,
         loginWithGoogle,
         register,

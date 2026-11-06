@@ -73,13 +73,21 @@ export const GlobalAddressModal: React.FC = () => {
 
   const handleSave = async (data: AddressData) => {
     if (!user) return;
+    const formattedAddress = [
+      data.street,
+      data.city,
+      data.state ? `${data.state}${data.pincode ? ` - ${data.pincode}` : ''}` : data.pincode,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
     const updatedUser = {
       ...user,
       full_name: data.fullName,
       phone: data.phone,
       street_address: data.street,
       street: data.street,
-      address: data.street,
+      address: formattedAddress,
       city: data.city,
       state: data.state,
       pincode: data.pincode,
